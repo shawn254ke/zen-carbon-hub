@@ -9,38 +9,174 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as LabResultsRouteImport } from './routes/lab-results'
+import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as EvidenceRouteImport } from './routes/evidence'
+import { Route as EmissionsRouteImport } from './routes/emissions'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LabResultsRoute = LabResultsRouteImport.update({
+  id: '/lab-results',
+  path: '/lab-results',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryRoute = InventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvidenceRoute = EvidenceRouteImport.update({
+  id: '/evidence',
+  path: '/evidence',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmissionsRoute = EmissionsRouteImport.update({
+  id: '/emissions',
+  path: '/emissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => ProjectsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/emissions': typeof EmissionsRoute
+  '/evidence': typeof EvidenceRoute
+  '/inventory': typeof InventoryRoute
+  '/lab-results': typeof LabResultsRoute
+  '/profile': typeof ProfileRoute
+  '/projects': typeof ProjectsRouteWithChildren
+  '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/emissions': typeof EmissionsRoute
+  '/evidence': typeof EvidenceRoute
+  '/inventory': typeof InventoryRoute
+  '/lab-results': typeof LabResultsRoute
+  '/profile': typeof ProfileRoute
+  '/projects': typeof ProjectsRouteWithChildren
+  '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/emissions': typeof EmissionsRoute
+  '/evidence': typeof EvidenceRoute
+  '/inventory': typeof InventoryRoute
+  '/lab-results': typeof LabResultsRoute
+  '/profile': typeof ProfileRoute
+  '/projects': typeof ProjectsRouteWithChildren
+  '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/emissions'
+    | '/evidence'
+    | '/inventory'
+    | '/lab-results'
+    | '/profile'
+    | '/projects'
+    | '/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/emissions'
+    | '/evidence'
+    | '/inventory'
+    | '/lab-results'
+    | '/profile'
+    | '/projects'
+    | '/projects/$projectId'
+  id:
+    | '__root__'
+    | '/'
+    | '/emissions'
+    | '/evidence'
+    | '/inventory'
+    | '/lab-results'
+    | '/profile'
+    | '/projects'
+    | '/projects/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EmissionsRoute: typeof EmissionsRoute
+  EvidenceRoute: typeof EvidenceRoute
+  InventoryRoute: typeof InventoryRoute
+  LabResultsRoute: typeof LabResultsRoute
+  ProfileRoute: typeof ProfileRoute
+  ProjectsRoute: typeof ProjectsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lab-results': {
+      id: '/lab-results'
+      path: '/lab-results'
+      fullPath: '/lab-results'
+      preLoaderRoute: typeof LabResultsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory': {
+      id: '/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/evidence': {
+      id: '/evidence'
+      path: '/evidence'
+      fullPath: '/evidence'
+      preLoaderRoute: typeof EvidenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/emissions': {
+      id: '/emissions'
+      path: '/emissions'
+      fullPath: '/emissions'
+      preLoaderRoute: typeof EmissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +184,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId': {
+      id: '/projects/$projectId'
+      path: '/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof ProjectsProjectIdRouteImport
+      parentRoute: typeof ProjectsRoute
+    }
   }
 }
 
+interface ProjectsRouteChildren {
+  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
+}
+
+const ProjectsRouteChildren: ProjectsRouteChildren = {
+  ProjectsProjectIdRoute: ProjectsProjectIdRoute,
+}
+
+const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
+  ProjectsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EmissionsRoute: EmissionsRoute,
+  EvidenceRoute: EvidenceRoute,
+  InventoryRoute: InventoryRoute,
+  LabResultsRoute: LabResultsRoute,
+  ProfileRoute: ProfileRoute,
+  ProjectsRoute: ProjectsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
