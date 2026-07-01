@@ -13,6 +13,7 @@ import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as LabResultsRouteImport } from './routes/lab-results'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as EvidenceRouteImport } from './routes/evidence'
+import { Route as EmissionsRouteImport } from './routes/emissions'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 
@@ -36,6 +37,11 @@ const EvidenceRoute = EvidenceRouteImport.update({
   path: '/evidence',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmissionsRoute = EmissionsRouteImport.update({
+  id: '/emissions',
+  path: '/emissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/emissions': typeof EmissionsRoute
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/emissions': typeof EmissionsRoute
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/emissions': typeof EmissionsRoute
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/emissions'
     | '/evidence'
     | '/inventory'
     | '/lab-results'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/emissions'
     | '/evidence'
     | '/inventory'
     | '/lab-results'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/emissions'
     | '/evidence'
     | '/inventory'
     | '/lab-results'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  EmissionsRoute: typeof EmissionsRoute
   EvidenceRoute: typeof EvidenceRoute
   InventoryRoute: typeof InventoryRoute
   LabResultsRoute: typeof LabResultsRoute
@@ -137,6 +150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EvidenceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/emissions': {
+      id: '/emissions'
+      path: '/emissions'
+      fullPath: '/emissions'
+      preLoaderRoute: typeof EmissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -168,6 +188,7 @@ const ProjectsRouteWithChildren = ProjectsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  EmissionsRoute: EmissionsRoute,
   EvidenceRoute: EvidenceRoute,
   InventoryRoute: InventoryRoute,
   LabResultsRoute: LabResultsRoute,
