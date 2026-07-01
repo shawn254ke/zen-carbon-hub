@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LabResultsRouteImport } from './routes/lab-results'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as EvidenceRouteImport } from './routes/evidence'
@@ -20,6 +21,11 @@ import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projec
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LabResultsRoute = LabResultsRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
+  '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
+  '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
+  '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/inventory'
     | '/lab-results'
+    | '/profile'
     | '/projects'
     | '/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/inventory'
     | '/lab-results'
+    | '/profile'
     | '/projects'
     | '/projects/$projectId'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/inventory'
     | '/lab-results'
+    | '/profile'
     | '/projects'
     | '/projects/$projectId'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   EvidenceRoute: typeof EvidenceRoute
   InventoryRoute: typeof InventoryRoute
   LabResultsRoute: typeof LabResultsRoute
+  ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
 }
 
@@ -127,6 +140,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects'
       preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lab-results': {
@@ -192,6 +212,7 @@ const rootRouteChildren: RootRouteChildren = {
   EvidenceRoute: EvidenceRoute,
   InventoryRoute: InventoryRoute,
   LabResultsRoute: LabResultsRoute,
+  ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
