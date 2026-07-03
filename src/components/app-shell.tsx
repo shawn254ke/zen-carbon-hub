@@ -1,5 +1,16 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, FolderKanban, FileCheck2, Boxes, FlaskConical, Gauge, UserCircle2, Leaf, ShieldCheck } from "lucide-react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  FileCheck2,
+  Boxes,
+  FlaskConical,
+  Gauge,
+  UserCircle2,
+  Leaf,
+  ShieldCheck,
+  LogOut,
+} from "lucide-react";
 import { ROLE_LABELS, useAuth, type Role } from "@/lib/auth";
 import {
   Sidebar,
@@ -22,6 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
 const NAV = [
