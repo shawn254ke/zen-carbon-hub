@@ -64,6 +64,7 @@ const ROLE_OPTIONS: Role[] = [
 
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const { user, setRole } = useAuth();
 
   const isActive = (to: string) =>
