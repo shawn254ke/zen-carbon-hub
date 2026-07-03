@@ -219,7 +219,7 @@ function DeptChip({ done, total }: { done: number; total: number }) {
           ? "bg-primary/15 text-primary"
           : empty
             ? "bg-destructive/10 text-destructive"
-            : "bg-warning/15 text-warning-foreground border border-warning/30")
+            : "bg-warning/15 text-warning border border-warning/30")
       }
     >
       {done}/{total}
