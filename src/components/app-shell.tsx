@@ -116,8 +116,8 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
           <SidebarRail />
           <SidebarFooter>
             <div className="px-2 py-3">
-              <div className="flex items-center gap-3 mb-3">
-                <Avatar className="h-9 w-9 border border-sidebar-border">
+              <div className={`flex items-center gap-3 mb-3 ${state === "collapsed" ? "justify-center" : ""}`}>
+                <Avatar className="h-9 w-9 border border-sidebar-border shrink-0">
                   <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=3b82f6`} alt={user.name} />
                   <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
                     {user.name
@@ -128,7 +128,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
                       .toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="min-w-0 flex-1 leading-tight">
+                <div className={`min-w-0 flex-1 leading-tight ${state === "collapsed" ? "hidden" : ""}`}>
                   <div className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</div>
                   <div className="truncate text-xs text-sidebar-foreground/70">{user.email}</div>
                 </div>
@@ -136,14 +136,15 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start gap-2 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className={`gap-2 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ${state === "collapsed" ? "w-9 justify-center px-0" : "w-full justify-start"}`}
                 onClick={() => {
                   window.localStorage.removeItem("zc_user");
                   navigate({ to: "/" });
                 }}
+                title="Log out"
               >
-                <LogOut className="h-4 w-4" />
-                Log out
+                <LogOut className="h-4 w-4 shrink-0" />
+                {state !== "collapsed" && <span>Log out</span>}
               </Button>
             </div>
           </SidebarFooter>
