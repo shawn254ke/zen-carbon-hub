@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, FolderKanban, FileCheck2, Boxes, FlaskConical, Gauge, UserCircle2, Leaf } from "lucide-react";
+import { LayoutDashboard, FolderKanban, FileCheck2, Boxes, FlaskConical, Gauge, UserCircle2, Leaf, ShieldCheck } from "lucide-react";
 import { ROLE_LABELS, useAuth, type Role } from "@/lib/auth";
 import {
   Sidebar,
@@ -28,6 +28,7 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/evidence", label: "Evidence Repository", icon: FileCheck2 },
+  { to: "/verification", label: "Verification Readiness", icon: ShieldCheck },
   { to: "/inventory", label: "Inventory", icon: Boxes },
   { to: "/lab-results", label: "Lab Results", icon: FlaskConical },
   { to: "/emissions", label: "Emissions Activities", icon: Gauge },
