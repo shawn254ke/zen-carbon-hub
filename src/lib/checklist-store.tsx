@@ -27,11 +27,6 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const persist = (next: ChecklistMap) => {
-    setChecklist(next);
-    if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  };
-
   const addItem = useCallback((dept: Department, item: string) => {
     const trimmed = item.trim();
     if (!trimmed) return;
@@ -62,8 +57,6 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(() => ({ checklist, addItem, removeItem, renameItem }), [checklist, addItem, removeItem, renameItem]);
-  // reference persist to keep TS happy if unused
-  void persist;
   return <ChecklistCtx.Provider value={value}>{children}</ChecklistCtx.Provider>;
 }
 
