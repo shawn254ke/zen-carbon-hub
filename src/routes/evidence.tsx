@@ -1,28 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Circle, Upload, FilePlus2 } from "lucide-react";
-import { DEPARTMENTS, EVIDENCE, PROJECTS, type Department } from "@/lib/mock-data";
+import { Check, Circle, Upload, Lock } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DEPARTMENTS, EVIDENCE, PROJECTS, type Department, type EvidenceItem } from "@/lib/mock-data";
 import { useChecklist } from "@/lib/checklist-store";
-import { useAuth } from "@/lib/auth";
+import { useAuth, type Role } from "@/lib/auth";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/evidence")({
   component: EvidencePage,
 });
 
+// Map a department-lead role to the department it owns.
+const ROLE_TO_DEPT: Partial<Record<Role, Department>> = {
+  dept_ic: "ic",
+  dept_mechanical: "mechanical",
+  dept_chemical: "chemical",
+  dept_mrv: "mrv",
+  dept_admin: "admin",
+};
+
+function useCanUploadFor() {
+  const { user, can } = useAuth();
+  return (dept: Department) => {
+    if (!can("evidence:upload")) return false;
+    // Admin & MRV can upload for any department.
+    if (user.role === "admin" || user.role === "dept_mrv") return true;
+    // Project managers may upload evidence across departments.
+    if (user.role === "project_manager") return true;
+    // Department leads may only upload for their own department.
+    const owned = ROLE_TO_DEPT[user.role];
+    return owned === dept;
+  };
+}
+
 function EvidencePage() {
-  const { can } = useAuth();
+  const canUploadFor = useCanUploadFor();
+  const [tick, setTick] = useState(0);
   return (
     <AppShell title="Evidence Repository">
       <div className="space-y-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Evidence Repository</h2>
           <p className="text-sm text-muted-foreground">
-            Verification checklists per department, plus other supporting documents.
+            All departments can view every submission. Uploads are restricted to the owning department.
           </p>
         </div>
 
@@ -35,8 +65,12 @@ function EvidencePage() {
 
           {DEPARTMENTS.map((d) => (
             <TabsContent key={d.key} value={d.key} className="mt-4 space-y-4">
-              <ChecklistCard dept={d.key} />
-              <EvidenceTable dept={d.key} canUpload={can("evidence:upload")} />
+              <ChecklistCard dept={d.key} key={`c-${tick}`} />
+              <EvidenceTable
+                dept={d.key}
+                canUpload={canUploadFor(d.key)}
+                onUploaded={() => setTick((t) => t + 1)}
+              />
             </TabsContent>
           ))}
         </Tabs>
@@ -74,8 +108,11 @@ function ChecklistCard({ dept }: { dept: Department }) {
   );
 }
 
-function EvidenceTable({ dept, canUpload }: { dept: Department; canUpload: boolean }) {
-  const items = EVIDENCE.filter((e) => e.department === dept);
+function EvidenceTable({ dept, canUpload, onUploaded }: { dept: Department; canUpload: boolean; onUploaded: () => void }) {
+  const [tick, setTick] = useState(0);
+  const [open, setOpen] = useState(false);
+  const items = useMemo(() => EVIDENCE.filter((e) => e.department === dept), [dept, tick]);
+  const deptLabel = DEPARTMENTS.find((d) => d.key === dept)!.label;
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -83,11 +120,14 @@ function EvidenceTable({ dept, canUpload }: { dept: Department; canUpload: boole
           <CardTitle className="text-base">Submitted documents</CardTitle>
           <CardDescription>All documents across projects, including "Other".</CardDescription>
         </div>
-        {canUpload && (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline"><FilePlus2 className="h-4 w-4 mr-1" /> Other document</Button>
-            <Button size="sm"><Upload className="h-4 w-4 mr-1" /> Upload</Button>
-          </div>
+        {canUpload ? (
+          <Button size="sm" onClick={() => setOpen(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Upload evidence
+          </Button>
+        ) : (
+          <Badge variant="secondary" className="gap-1">
+            <Lock className="h-3 w-3" /> View only — {deptLabel} uploads
+          </Badge>
         )}
       </CardHeader>
       <CardContent>
@@ -115,6 +155,126 @@ function EvidenceTable({ dept, canUpload }: { dept: Department; canUpload: boole
           </TableBody>
         </Table>
       </CardContent>
+      <UploadEvidenceDialog
+        open={open}
+        onOpenChange={setOpen}
+        dept={dept}
+        onSubmitted={() => {
+          setTick((t) => t + 1);
+          onUploaded();
+        }}
+      />
     </Card>
+  );
+}
+
+function UploadEvidenceDialog({
+  open,
+  onOpenChange,
+  dept,
+  onSubmitted,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  dept: Department;
+  onSubmitted: () => void;
+}) {
+  const { user } = useAuth();
+  const { checklist } = useChecklist();
+  const required = checklist[dept];
+  const deptLabel = DEPARTMENTS.find((d) => d.key === dept)!.label;
+
+  const [projectId, setProjectId] = useState<string>(PROJECTS[0]?.id ?? "");
+  const [docType, setDocType] = useState<string>(required[0] ?? "__other");
+  const [otherName, setOtherName] = useState("");
+  const [fileName, setFileName] = useState("");
+
+  const isOther = docType === "__other";
+
+  const reset = () => {
+    setProjectId(PROJECTS[0]?.id ?? "");
+    setDocType(required[0] ?? "__other");
+    setOtherName("");
+    setFileName("");
+  };
+
+  const submit = () => {
+    const finalType = isOther ? otherName.trim() : docType;
+    if (!projectId || !finalType || !fileName.trim()) {
+      toast.error("Fill in project, document type and a file");
+      return;
+    }
+    const item: EvidenceItem = {
+      id: `e_${Date.now()}`,
+      projectId,
+      department: dept,
+      documentType: finalType,
+      fileName: fileName.trim(),
+      uploadedBy: user.name,
+      uploadedAt: new Date().toISOString().slice(0, 10),
+      status: "pending",
+      isOther,
+    };
+    EVIDENCE.unshift(item);
+    toast.success("Evidence uploaded");
+    reset();
+    onOpenChange(false);
+    onSubmitted();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Upload evidence — {deptLabel}</DialogTitle>
+          <DialogDescription>
+            Attach a document to a project. Pick a checklist item, or choose "Other" to submit supporting material.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label>Project</Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+              <SelectContent>
+                {PROJECTS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Document type</Label>
+            <Select value={docType} onValueChange={setDocType}>
+              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+              <SelectContent>
+                {required.map((r) => (
+                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                ))}
+                <SelectItem value="__other">Other (supporting document)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {isOther && (
+            <div className="grid gap-2">
+              <Label>Describe the document</Label>
+              <Input value={otherName} onChange={(e) => setOtherName(e.target.value)} placeholder="e.g. Vendor spec sheet" />
+            </div>
+          )}
+          <div className="grid gap-2">
+            <Label>File</Label>
+            <Input
+              type="file"
+              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
+            />
+            {fileName && <p className="text-xs text-muted-foreground">Selected: {fileName}</p>}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={submit}><Upload className="h-4 w-4 mr-1" /> Upload</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
