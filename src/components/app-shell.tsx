@@ -7,7 +7,6 @@ import {
   FlaskConical,
   Gauge,
   UserCircle2,
-  Leaf,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -38,6 +37,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { ReactNode } from "react";
+import logoAsset from "@/assets/zen-logo.png.asset.json";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -132,7 +132,7 @@ function SidebarUserFooter() {
           className={`gap-2 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ${collapsed ? "w-9 justify-center px-0" : "w-full justify-start"}`}
           onClick={() => {
             window.localStorage.removeItem("zc_user");
-            navigate({ to: "/" });
+            navigate({ to: "/login" });
           }}
           title="Log out"
         >
@@ -157,9 +157,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-2 py-2">
-              <div className="h-8 w-8 rounded-md bg-sidebar-primary flex items-center justify-center">
-                <Leaf className="h-4 w-4 text-sidebar-primary-foreground" />
-              </div>
+              <img src={logoAsset.url} alt="Zen Carbon" className="h-8 w-8 rounded-md object-contain bg-white/90 p-0.5" />
               <div className="leading-tight">
                 <div className="text-sm font-semibold text-sidebar-foreground">Zen Carbon</div>
                 <div className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">

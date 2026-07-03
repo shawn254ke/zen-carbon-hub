@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LabResultsRouteImport } from './routes/lab-results'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as EvidenceRouteImport } from './routes/evidence'
@@ -32,6 +33,11 @@ const ProjectsRoute = ProjectsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LabResultsRoute = LabResultsRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
+  '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/verification': typeof VerificationRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
+  '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/verification': typeof VerificationRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/evidence': typeof EvidenceRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
+  '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
   '/verification': typeof VerificationRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/inventory'
     | '/lab-results'
+    | '/login'
     | '/profile'
     | '/projects'
     | '/verification'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/inventory'
     | '/lab-results'
+    | '/login'
     | '/profile'
     | '/projects'
     | '/verification'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/inventory'
     | '/lab-results'
+    | '/login'
     | '/profile'
     | '/projects'
     | '/verification'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   EvidenceRoute: typeof EvidenceRoute
   InventoryRoute: typeof InventoryRoute
   LabResultsRoute: typeof LabResultsRoute
+  LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
   VerificationRoute: typeof VerificationRoute
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lab-results': {
@@ -232,6 +252,7 @@ const rootRouteChildren: RootRouteChildren = {
   EvidenceRoute: EvidenceRoute,
   InventoryRoute: InventoryRoute,
   LabResultsRoute: LabResultsRoute,
+  LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
   VerificationRoute: VerificationRoute,
@@ -239,13 +260,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
