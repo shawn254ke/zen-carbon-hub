@@ -24,7 +24,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Select,
@@ -62,9 +64,88 @@ const ROLE_OPTIONS: Role[] = [
   "viewer",
 ];
 
+function NavItem({
+  to,
+  label,
+  icon: Icon,
+  isActive,
+}: {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isActive: boolean;
+}) {
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+        <Link
+          to={to}
+          className="flex items-center gap-2"
+          onClick={() => {
+            if (isMobile) setOpenMobile(false);
+          }}
+        >
+          <Icon className="h-4 w-4" />
+          <span>{label}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function SidebarUserFooter() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  const initials = user.name
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return (
+    <SidebarFooter>
+      <div className="px-2 py-3">
+        <div className={`flex items-center gap-3 mb-3 ${collapsed ? "justify-center" : ""}`}>
+          <Avatar className="h-9 w-9 border border-sidebar-border shrink-0">
+            <AvatarImage
+              src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=3b82f6`}
+              alt={user.name}
+            />
+            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className={`min-w-0 flex-1 leading-tight ${collapsed ? "hidden" : ""}`}>
+            <div className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</div>
+            <div className="truncate text-xs text-sidebar-foreground/70">{user.email}</div>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`gap-2 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ${collapsed ? "w-9 justify-center px-0" : "w-full justify-start"}`}
+          onClick={() => {
+            window.localStorage.removeItem("zc_user");
+            navigate({ to: "/" });
+          }}
+          title="Log out"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Log out</span>}
+        </Button>
+      </div>
+    </SidebarFooter>
+  );
+}
+
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const navigate = useNavigate();
   const { user, setRole } = useAuth();
 
   const isActive = (to: string) =>
@@ -93,52 +174,20 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
               <SidebarGroupContent>
                 <SidebarMenu>
                   {NAV.map((item) => (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={isActive(item.to)}>
-                        <Link to={item.to} className="flex items-center gap-2">
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    <NavItem
+                      key={item.to}
+                      to={item.to}
+                      label={item.label}
+                      icon={item.icon}
+                      isActive={isActive(item.to)}
+                    />
                   ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter>
-            <div className="px-2 py-3">
-              <div className="flex items-center gap-3 mb-3">
-                <Avatar className="h-9 w-9 border border-sidebar-border">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=3b82f6`} alt={user.name} />
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1 leading-tight">
-                  <div className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</div>
-                  <div className="truncate text-xs text-sidebar-foreground/70">{user.email}</div>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start gap-2 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                onClick={() => {
-                  window.localStorage.removeItem("zc_user");
-                  navigate({ to: "/" });
-                }}
-              >
-                <LogOut className="h-4 w-4" />
-                Log out
-              </Button>
-            </div>
-          </SidebarFooter>
+          <SidebarRail />
+          <SidebarUserFooter />
         </Sidebar>
 
         <div className="flex-1 flex flex-col min-w-0">
