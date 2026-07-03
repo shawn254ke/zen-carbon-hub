@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Check, Circle, Upload, FilePlus2 } from "lucide-react";
-import { CHECKLIST, DEPARTMENTS, EVIDENCE, PROJECTS, type Department } from "@/lib/mock-data";
+import { DEPARTMENTS, EVIDENCE, PROJECTS, type Department } from "@/lib/mock-data";
+import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/evidence")({
@@ -45,7 +46,8 @@ function EvidencePage() {
 }
 
 function ChecklistCard({ dept }: { dept: Department }) {
-  const required = CHECKLIST[dept];
+  const { checklist } = useChecklist();
+  const required = checklist[dept];
   const items = EVIDENCE.filter((e) => e.department === dept);
   const submittedTypes = new Set(items.map((i) => i.documentType));
   return (
