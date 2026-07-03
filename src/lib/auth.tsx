@@ -48,10 +48,11 @@ export type Permission =
   | "evidence:upload"
   | "evidence:verify"
   | "lab:upload"
+  | "verification:manage"
   | "admin:all";
 
 const PERMS: Record<Role, Permission[]> = {
-  admin: ["inventory:edit", "projects:edit", "evidence:upload", "evidence:verify", "lab:upload", "admin:all"],
+  admin: ["inventory:edit", "projects:edit", "evidence:upload", "evidence:verify", "lab:upload", "verification:manage", "admin:all"],
   inventory_manager: ["inventory:edit"],
   project_manager: ["projects:edit", "evidence:upload"],
   auditor: ["evidence:verify"],
@@ -60,7 +61,7 @@ const PERMS: Record<Role, Permission[]> = {
   dept_ic: ["evidence:upload"],
   dept_mechanical: ["evidence:upload"],
   dept_chemical: ["evidence:upload"],
-  dept_mrv: ["evidence:upload"],
+  dept_mrv: ["evidence:upload", "evidence:verify", "verification:manage"],
   dept_admin: ["evidence:upload"],
 };
 
