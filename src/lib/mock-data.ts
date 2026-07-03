@@ -169,12 +169,22 @@ export type EmissionActivity = {
   activity: string;
   period: string;
   tco2e: number;
+  category?: EmissionCategory;
 };
+
+export type EmissionCategory = "transport" | "energy" | "loss";
+
+export const EMISSION_CATEGORIES: { key: EmissionCategory; label: string; description: string }[] = [
+  { key: "transport", label: "Transport", description: "Feedstock, product & staff movement" },
+  { key: "energy", label: "Energy", description: "Electricity, fuels & thermal energy" },
+  { key: "loss", label: "Loss", description: "Process losses, leakage & spoilage" },
+];
 
 export const EMISSIONS: EmissionActivity[] = [
   { id: "em_1", projectId: "p_001", scope: "removals", activity: "Biochar carbon storage", period: "2025-Q1", tco2e: 1204 },
-  { id: "em_2", projectId: "p_001", scope: "scope1", activity: "Diesel generator", period: "2025-Q1", tco2e: 42 },
-  { id: "em_3", projectId: "p_001", scope: "scope2", activity: "Grid electricity", period: "2025-Q1", tco2e: 18 },
-  { id: "em_4", projectId: "p_001", scope: "scope3", activity: "Feedstock transport", period: "2025-Q1", tco2e: 61 },
+  { id: "em_2", projectId: "p_001", scope: "scope1", activity: "Diesel generator", period: "2025-Q1", tco2e: 42, category: "energy" },
+  { id: "em_3", projectId: "p_001", scope: "scope2", activity: "Grid electricity", period: "2025-Q1", tco2e: 18, category: "energy" },
+  { id: "em_4", projectId: "p_001", scope: "scope3", activity: "Feedstock transport", period: "2025-Q1", tco2e: 61, category: "transport" },
   { id: "em_5", projectId: "p_002", scope: "removals", activity: "Biochar carbon storage", period: "2025-Q1", tco2e: 480 },
+  { id: "em_6", projectId: "p_001", scope: "scope1", activity: "Volatile matter loss", period: "2025-Q1", tco2e: 12, category: "loss" },
 ];
