@@ -68,9 +68,14 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { user, setRole } = useAuth();
+  const { state, isMobile, setOpenMobile } = useSidebar();
 
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
+
+  const handleNavClick = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <SidebarProvider>
