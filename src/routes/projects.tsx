@@ -11,8 +11,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { LayoutGrid, List, Plus, Search } from "lucide-react";
+import { LayoutGrid, List, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/projects")({
@@ -62,9 +80,9 @@ function ProjectsLayout() {
             </p>
           </div>
           {canCreate && (
-            <AddProjectDialog
+            <ProjectFormDialog
               defaultCategory={tab}
-              onCreated={() => setTick((t) => t + 1)}
+              onSaved={() => setTick((t) => t + 1)}
             />
           )}
         </div>
@@ -114,10 +132,10 @@ function ProjectsLayout() {
           </div>
 
           <TabsContent value="industrial" className="mt-4">
-            <ProjectResults list={filtered} view={view} />
+            <ProjectResults list={filtered} view={view} onChanged={() => setTick((t) => t + 1)} />
           </TabsContent>
           <TabsContent value="internal" className="mt-4">
-            <ProjectResults list={filtered} view={view} />
+            <ProjectResults list={filtered} view={view} onChanged={() => setTick((t) => t + 1)} />
           </TabsContent>
         </Tabs>
       </div>
@@ -125,7 +143,7 @@ function ProjectsLayout() {
   );
 }
 
-function ProjectResults({ list, view }: { list: Project[]; view: ViewMode }) {
+function ProjectResults({ list, view, onChanged }: { list: Project[]; view: ViewMode; onChanged: () => void }) {
   if (list.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -133,17 +151,28 @@ function ProjectResults({ list, view }: { list: Project[]; view: ViewMode }) {
       </div>
     );
   }
-  return view === "grid" ? <ProjectGrid list={list} /> : <ProjectTable list={list} />;
+  return view === "grid" ? (
+    <ProjectGrid list={list} onChanged={onChanged} />
+  ) : (
+    <ProjectTable list={list} onChanged={onChanged} />
+  );
 }
 
-function ProjectGrid({ list }: { list: Project[] }) {
+function ProjectGrid({ list, onChanged }: { list: Project[]; onChanged: () => void }) {
+  const { can } = useAuth();
+  const canEdit = can("projects:create");
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {list.map((p) => (
-        <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}>
-          <Card className="hover:border-primary/60 transition">
+        <Card key={p.id} className="hover:border-primary/60 transition relative">
+          {canEdit && (
+            <div className="absolute top-2 right-2 z-10">
+              <RowActions project={p} onChanged={onChanged} />
+            </div>
+          )}
+          <Link to="/projects/$projectId" params={{ projectId: p.id }} className="block">
             <CardHeader>
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start justify-between gap-2 pr-8">
                 <div>
                   <CardTitle className="text-base">{p.name}</CardTitle>
                   <CardDescription>{p.code}</CardDescription>
@@ -159,14 +188,16 @@ function ProjectGrid({ list }: { list: Project[] }) {
                 <span>{p.emissionsAvoidedTco2e.toLocaleString()} tCO₂e</span>
               </div>
             </CardContent>
-          </Card>
-        </Link>
+          </Link>
+        </Card>
       ))}
     </div>
   );
 }
 
-function ProjectTable({ list }: { list: Project[] }) {
+function ProjectTable({ list, onChanged }: { list: Project[]; onChanged: () => void }) {
+  const { can } = useAuth();
+  const canEdit = can("projects:create");
   return (
     <div className="rounded-md border">
       <Table>
@@ -178,6 +209,7 @@ function ProjectTable({ list }: { list: Project[] }) {
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Batches</TableHead>
             <TableHead className="text-right">tCO₂e</TableHead>
+            {canEdit && <TableHead className="w-10" />}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -199,6 +231,11 @@ function ProjectTable({ list }: { list: Project[] }) {
               </TableCell>
               <TableCell className="text-right">{p.batchesRun}</TableCell>
               <TableCell className="text-right">{p.emissionsAvoidedTco2e.toLocaleString()}</TableCell>
+              {canEdit && (
+                <TableCell className="text-right">
+                  <RowActions project={p} onChanged={onChanged} />
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -207,57 +244,177 @@ function ProjectTable({ list }: { list: Project[] }) {
   );
 }
 
-function AddProjectDialog({
+function RowActions({ project, onChanged }: { project: Project; onChanged: () => void }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const remove = () => {
+    const i = PROJECTS.findIndex((x) => x.id === project.id);
+    if (i >= 0) PROJECTS.splice(i, 1);
+    setConfirmOpen(false);
+    onChanged();
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => e.preventDefault()}
+            aria-label="Project actions"
+          >
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setEditOpen(true);
+            }}
+          >
+            <Pencil className="mr-2 h-4 w-4" /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={(e) => {
+              e.preventDefault();
+              setConfirmOpen(true);
+            }}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ProjectFormDialog
+        project={project}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={onChanged}
+      />
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{project.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the project from the workspace. Related batches, evidence, and lab
+              results will no longer be linked to a project.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={remove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete project
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function ProjectFormDialog({
   defaultCategory,
-  onCreated,
+  project,
+  open: controlledOpen,
+  onOpenChange,
+  onSaved,
 }: {
-  defaultCategory: ProjectCategory;
-  onCreated: () => void;
+  defaultCategory?: ProjectCategory;
+  project?: Project;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  onSaved: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [category, setCategory] = useState<ProjectCategory>(defaultCategory);
-  const [location, setLocation] = useState("");
-  const [methodology, setMethodology] = useState("");
-  const [status, setStatus] = useState<Project["status"]>("planning");
+  const isEdit = !!project;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
+
+  const [name, setName] = useState(project?.name ?? "");
+  const [code, setCode] = useState(project?.code ?? "");
+  const [category, setCategory] = useState<ProjectCategory>(project?.category ?? defaultCategory ?? "industrial");
+  const [location, setLocation] = useState(project?.location ?? "");
+  const [methodology, setMethodology] = useState(project?.methodology ?? "");
+  const [status, setStatus] = useState<Project["status"]>(project?.status ?? "planning");
+
+  // Reset form when opening for a different project
+  useMemo(() => {
+    if (open && project) {
+      setName(project.name);
+      setCode(project.code);
+      setCategory(project.category);
+      setLocation(project.location);
+      setMethodology(project.methodology ?? "");
+      setStatus(project.status);
+    }
+  }, [open, project]);
 
   const submit = () => {
     if (!name.trim() || !code.trim()) return;
-    PROJECTS.unshift({
-      id: `p_${Date.now()}`,
-      code: code.trim(),
-      name: name.trim(),
-      category,
-      status,
-      location: location.trim() || "—",
-      registry: category === "industrial" ? "Isometric" : undefined,
-      methodology: methodology.trim() || undefined,
-      startDate: new Date().toISOString().slice(0, 10),
-      emissionsAvoidedTco2e: 0,
-      batchesRun: 0,
-    });
-    setName("");
-    setCode("");
-    setLocation("");
-    setMethodology("");
-    setStatus("planning");
+    if (isEdit && project) {
+      const i = PROJECTS.findIndex((x) => x.id === project.id);
+      if (i >= 0) {
+        PROJECTS[i] = {
+          ...PROJECTS[i],
+          name: name.trim(),
+          code: code.trim(),
+          category,
+          status,
+          location: location.trim() || "—",
+          registry: category === "industrial" ? PROJECTS[i].registry ?? "Isometric" : undefined,
+          methodology: methodology.trim() || undefined,
+        };
+      }
+    } else {
+      PROJECTS.unshift({
+        id: `p_${Date.now()}`,
+        code: code.trim(),
+        name: name.trim(),
+        category,
+        status,
+        location: location.trim() || "—",
+        registry: category === "industrial" ? "Isometric" : undefined,
+        methodology: methodology.trim() || undefined,
+        startDate: new Date().toISOString().slice(0, 10),
+        emissionsAvoidedTco2e: 0,
+        batchesRun: 0,
+      });
+      setName("");
+      setCode("");
+      setLocation("");
+      setMethodology("");
+      setStatus("planning");
+    }
     setOpen(false);
-    onCreated();
+    onSaved();
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus /> Add project
-        </Button>
-      </DialogTrigger>
+      {!isEdit && controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus /> Add project
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New project</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit project" : "New project"}</DialogTitle>
           <DialogDescription>
-            Register a new industrial or internal test project.
+            {isEdit
+              ? "Update project details and status."
+              : "Register a new industrial or internal test project."}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
@@ -306,7 +463,9 @@ function AddProjectDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={!name.trim() || !code.trim()}>Create project</Button>
+          <Button onClick={submit} disabled={!name.trim() || !code.trim()}>
+            {isEdit ? "Save changes" : "Create project"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
