@@ -31,10 +31,6 @@ function ProjectsLayout() {
   const [view, setView] = useState<ViewMode>("grid");
   const [tab, setTab] = useState<ProjectCategory>("industrial");
 
-  if (pathname !== "/projects" && pathname !== "/projects/") {
-    return <Outlet />;
-  }
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return PROJECTS.filter((p) => p.category === tab)
@@ -50,6 +46,10 @@ function ProjectsLayout() {
   }, [query, status, tab]);
 
   const canCreate = can("projects:create");
+
+  if (pathname !== "/projects" && pathname !== "/projects/") {
+    return <Outlet />;
+  }
 
   return (
     <AppShell title="Projects">
