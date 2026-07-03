@@ -101,8 +101,8 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
                 <SidebarMenu>
                   {NAV.map((item) => (
                     <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={isActive(item.to)}>
-                        <Link to={item.to} className="flex items-center gap-2">
+                      <SidebarMenuButton asChild isActive={isActive(item.to)} tooltip={item.label}>
+                        <Link to={item.to} className="flex items-center gap-2" onClick={handleNavClick}>
                           <item.icon className="h-4 w-4" />
                           <span>{item.label}</span>
                         </Link>
@@ -113,6 +113,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
+          <SidebarRail />
           <SidebarFooter>
             <div className="px-2 py-3">
               <div className="flex items-center gap-3 mb-3">
