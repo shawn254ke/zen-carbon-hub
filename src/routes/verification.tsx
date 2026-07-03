@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf } from "lucide-react";
-import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department, type Project } from "@/lib/mock-data";
+import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department } from "@/lib/mock-data";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
 
@@ -380,6 +380,3 @@ function DeptChecklistEditor({
     </Card>
   );
 }
-
-// keep unused imports referenced to avoid TS errors during scaffold edits
-void ((): Project | undefined => undefined);
