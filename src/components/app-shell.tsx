@@ -1,5 +1,16 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, FolderKanban, FileCheck2, Boxes, FlaskConical, Gauge, UserCircle2, Leaf, ShieldCheck } from "lucide-react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  FileCheck2,
+  Boxes,
+  FlaskConical,
+  Gauge,
+  UserCircle2,
+  Leaf,
+  ShieldCheck,
+  LogOut,
+} from "lucide-react";
 import { ROLE_LABELS, useAuth, type Role } from "@/lib/auth";
 import {
   Sidebar,
@@ -22,6 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
 const NAV = [
@@ -51,6 +64,7 @@ const ROLE_OPTIONS: Role[] = [
 
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const { user, setRole } = useAuth();
 
   const isActive = (to: string) =>
@@ -93,10 +107,36 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
-            <div className="px-2 py-2 text-xs text-sidebar-foreground/70">
-              Signed in as
-              <div className="text-sidebar-foreground font-medium">{user.name}</div>
-              <div className="truncate">{user.email}</div>
+            <div className="px-2 py-3">
+              <div className="flex items-center gap-3 mb-3">
+                <Avatar className="h-9 w-9 border border-sidebar-border">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=3b82f6`} alt={user.name} />
+                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+                    {user.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 leading-tight">
+                  <div className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</div>
+                  <div className="truncate text-xs text-sidebar-foreground/70">{user.email}</div>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                onClick={() => {
+                  window.localStorage.removeItem("zc_user");
+                  navigate({ to: "/" });
+                }}
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </Button>
             </div>
           </SidebarFooter>
         </Sidebar>
