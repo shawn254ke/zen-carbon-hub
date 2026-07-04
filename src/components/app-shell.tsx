@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import logoAsset from "@/assets/zen-logo.png.asset.json";
 
 const NAV = [
@@ -152,6 +152,13 @@ function SidebarUserFooter() {
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, setRole } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user.role === "client" && pathname !== "/client") {
+      navigate({ to: "/client" });
+    }
+  }, [user.role, pathname, navigate]);
 
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
