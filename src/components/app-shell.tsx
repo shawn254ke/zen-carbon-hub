@@ -50,12 +50,17 @@ const NAV = [
   { to: "/profile", label: "Profile & Settings", icon: UserCircle2 },
 ] as const;
 
+const CLIENT_NAV = [
+  { to: "/client", label: "Dashboard", icon: LayoutDashboard },
+] as const;
+
 const ROLE_OPTIONS: Role[] = [
   "admin",
   "project_manager",
   "inventory_manager",
   "auditor",
   "lab_technician",
+  "client",
   "dept_ic",
   "dept_mechanical",
   "dept_chemical",
@@ -151,6 +156,8 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
 
+  const nav = user.role === "client" ? CLIENT_NAV : NAV;
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -171,7 +178,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
               <SidebarGroupLabel>Workspace</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {NAV.map((item) => (
+                  {nav.map((item) => (
                     <NavItem
                       key={item.to}
                       to={item.to}
