@@ -18,6 +18,7 @@ const ROLE_OPTIONS: Role[] = [
   "inventory_manager",
   "auditor",
   "lab_technician",
+  "client",
   "dept_ic",
   "dept_mechanical",
   "dept_chemical",
@@ -48,7 +49,7 @@ function LoginPage() {
     const user = { id: `u_${Date.now()}`, name: name || "Zen User", email, role };
     window.localStorage.setItem("zc_user", JSON.stringify(user));
     setRole(role);
-    navigate({ to: "/" });
+    navigate({ to: role === "client" ? "/client" : "/" });
   }
 
   return (
