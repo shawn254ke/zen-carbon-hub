@@ -7,6 +7,7 @@ export type Role =
   | "auditor"
   | "lab_technician"
   | "viewer"
+  | "client"
   | "dept_ic"
   | "dept_mechanical"
   | "dept_chemical"
@@ -20,6 +21,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   auditor: "Auditor",
   lab_technician: "Lab Technician",
   viewer: "Viewer",
+  client: "Client",
   dept_ic: "Instrumentation & Control",
   dept_mechanical: "Mechanical Dept.",
   dept_chemical: "Chemical Dept.",
@@ -59,6 +61,7 @@ const PERMS: Record<Role, Permission[]> = {
   auditor: ["evidence:verify"],
   lab_technician: ["lab:upload"],
   viewer: [],
+  client: [],
   dept_ic: ["evidence:upload"],
   dept_mechanical: ["evidence:upload"],
   dept_chemical: ["evidence:upload"],

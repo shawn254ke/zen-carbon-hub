@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import logoAsset from "@/assets/zen-logo.png.asset.json";
 
 const NAV = [
@@ -50,12 +50,17 @@ const NAV = [
   { to: "/profile", label: "Profile & Settings", icon: UserCircle2 },
 ] as const;
 
+const CLIENT_NAV = [
+  { to: "/client", label: "Dashboard", icon: LayoutDashboard },
+] as const;
+
 const ROLE_OPTIONS: Role[] = [
   "admin",
   "project_manager",
   "inventory_manager",
   "auditor",
   "lab_technician",
+  "client",
   "dept_ic",
   "dept_mechanical",
   "dept_chemical",
@@ -147,9 +152,18 @@ function SidebarUserFooter() {
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, setRole } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user.role === "client" && pathname !== "/client") {
+      navigate({ to: "/client" });
+    }
+  }, [user.role, pathname, navigate]);
 
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
+
+  const nav = user.role === "client" ? CLIENT_NAV : NAV;
 
   return (
     <SidebarProvider>
@@ -171,7 +185,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
               <SidebarGroupLabel>Workspace</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {NAV.map((item) => (
+                  {nav.map((item) => (
                     <NavItem
                       key={item.to}
                       to={item.to}
