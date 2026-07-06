@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download } from "lucide-react";
-import { LAB_RESULTS, PROJECTS } from "@/lib/mock-data";
+import { LAB_RESULTS, PROJECTS, type LabResult } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
