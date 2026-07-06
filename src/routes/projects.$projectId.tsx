@@ -144,22 +144,51 @@ function ProjectDetail() {
               const items = evidence.filter((e) => e.department === d.key);
               return (
                 <Card key={d.key}>
-                  <CardHeader>
-                    <CardTitle className="text-base">{d.label}</CardTitle>
-                    <CardDescription>{items.length} document(s)</CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">{d.label}</CardTitle>
+                      <CardDescription>{items.length} document(s)</CardDescription>
+                    </div>
+                    {items.length > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => items.forEach(downloadEvidence)}>
+                        <Download className="h-4 w-4 mr-1" /> Download all
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {items.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No documents submitted.</p>
                     ) : (
-                      <ul className="text-sm space-y-1">
-                        {items.map((e) => (
-                          <li key={e.id} className="flex justify-between border-b py-1.5 last:border-0">
-                            <span>{e.documentType} — {e.fileName}</span>
-                            <Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge>
-                          </li>
-                        ))}
-                      </ul>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Document</TableHead>
+                            <TableHead>File</TableHead>
+                            <TableHead>Uploaded by</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {items.map((e) => (
+                            <TableRow key={e.id}>
+                              <TableCell className="font-medium">{e.documentType}</TableCell>
+                              <TableCell>{e.fileName}</TableCell>
+                              <TableCell>{e.uploadedBy}</TableCell>
+                              <TableCell>{e.uploadedAt}</TableCell>
+                              <TableCell>
+                                <Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="outline" onClick={() => downloadEvidence(e)}>
+                                  <Download className="h-4 w-4 mr-1" /> Download
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     )}
                   </CardContent>
                 </Card>
