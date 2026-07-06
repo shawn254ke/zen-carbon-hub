@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin } from "lucide-react";
+import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download } from "lucide-react";
 import { LAB_RESULTS, PROJECTS } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
