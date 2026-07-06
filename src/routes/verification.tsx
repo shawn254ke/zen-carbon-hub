@@ -590,7 +590,7 @@ function IsometricSubmission() {
                     <TableHead>File</TableHead>
                     <TableHead>Uploaded by</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">File</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -694,6 +694,35 @@ function IsometricSubmission() {
 }
 
 function MiniStat({
+
+function downloadEvidence(it: EvidenceItem) {
+  const dept = DEPARTMENTS.find((d) => d.key === it.department)?.label ?? it.department;
+  const project = PROJECTS.find((p) => p.id === it.projectId);
+  const content =
+    `Zen Carbon — Evidence Document (mock)\n` +
+    `====================================\n\n` +
+    `File name:      ${it.fileName}\n` +
+    `Document type:  ${it.documentType}\n` +
+    `Department:     ${dept}\n` +
+    `Project:        ${project?.code ?? it.projectId} — ${project?.name ?? ""}\n` +
+    `Uploaded by:    ${it.uploadedBy}\n` +
+    `Uploaded at:    ${it.uploadedAt}\n` +
+    `Status:         ${it.status}\n` +
+    `Reference id:   ${it.id}\n\n` +
+    `This is a placeholder for the original uploaded document, provided so\n` +
+    `reviewers can counter-check submissions before sending them to Isometric.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = it.fileName.endsWith(".txt") ? it.fileName : `${it.fileName}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function MiniStatInner({
   label,
   value,
   tone = "muted",
