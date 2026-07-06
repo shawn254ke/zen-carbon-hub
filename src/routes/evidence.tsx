@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Circle, Upload, Lock } from "lucide-react";
+import { Check, Circle, Upload, Lock, Pencil, Trash2 } from "lucide-react";
 import { CheckCircle2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -183,11 +184,20 @@ function ChecklistCard({ dept, projectId }: { dept: Department; projectId: strin
 function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Department; projectId: string; canUpload: boolean; onUploaded: () => void }) {
   const [tick, setTick] = useState(0);
   const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<EvidenceItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<EvidenceItem | null>(null);
+  const { user } = useAuth();
   const items = useMemo(
     () => EVIDENCE.filter((e) => e.department === dept && e.projectId === projectId),
     [dept, projectId, tick],
   );
   const deptLabel = DEPARTMENTS.find((d) => d.key === dept)!.label;
+  const canManage = (e: EvidenceItem) =>
+    canUpload && (user.role === "admin" || user.role === "dept_mrv" || e.uploadedBy === user.name);
+  const bump = () => {
+    setTick((t) => t + 1);
+    onUploaded();
+  };
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -208,7 +218,7 @@ function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Depar
       <CardContent>
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Project</TableHead><TableHead>Document type</TableHead><TableHead>File</TableHead><TableHead>Uploaded by</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead>
+            <TableHead>Project</TableHead><TableHead>Document type</TableHead><TableHead>File</TableHead><TableHead>Uploaded by</TableHead><TableHead>Date</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {items.map((e) => {
@@ -221,11 +231,25 @@ function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Depar
                   <TableCell>{e.uploadedBy}</TableCell>
                   <TableCell>{e.uploadedAt}</TableCell>
                   <TableCell><Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge></TableCell>
+                  <TableCell className="text-right">
+                    {canManage(e) ? (
+                      <div className="flex justify-end gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => setEditItem(e)} aria-label="Edit">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setDeleteItem(e)} aria-label="Delete">
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}
             {items.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No documents submitted yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No documents submitted yet.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -234,12 +258,158 @@ function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Depar
         open={open}
         onOpenChange={setOpen}
         dept={dept}
-        onSubmitted={() => {
-          setTick((t) => t + 1);
-          onUploaded();
-        }}
+        onSubmitted={bump}
       />
+      <EditEvidenceDialog
+        item={editItem}
+        onOpenChange={(v) => { if (!v) setEditItem(null); }}
+        dept={dept}
+        onSaved={bump}
+      />
+      <AlertDialog open={!!deleteItem} onOpenChange={(v) => { if (!v) setDeleteItem(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this evidence?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteItem && <>Permanently remove <span className="font-medium">{deleteItem.fileName}</span> ({deleteItem.documentType}). This cannot be undone.</>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!deleteItem) return;
+                const idx = EVIDENCE.findIndex((x) => x.id === deleteItem.id);
+                if (idx >= 0) EVIDENCE.splice(idx, 1);
+                toast.success("Evidence deleted");
+                setDeleteItem(null);
+                bump();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
+  );
+}
+
+function EditEvidenceDialog({
+  item,
+  onOpenChange,
+  dept,
+  onSaved,
+}: {
+  item: EvidenceItem | null;
+  onOpenChange: (v: boolean) => void;
+  dept: Department;
+  onSaved: () => void;
+}) {
+  const { checklist } = useChecklist();
+  const required = checklist[dept];
+  const [projectId, setProjectId] = useState<string>("");
+  const [docType, setDocType] = useState<string>("");
+  const [otherName, setOtherName] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [status, setStatus] = useState<EvidenceItem["status"]>("pending");
+
+  const isOther = docType === "__other";
+
+  // Sync when item opens
+  useMemo(() => {
+    if (item) {
+      setProjectId(item.projectId);
+      const known = required.includes(item.documentType);
+      setDocType(known ? item.documentType : "__other");
+      setOtherName(known ? "" : item.documentType);
+      setFileName(item.fileName);
+      setStatus(item.status);
+    }
+  }, [item, required]);
+
+  const save = () => {
+    if (!item) return;
+    const finalType = isOther ? otherName.trim() : docType;
+    if (!projectId || !finalType || !fileName.trim()) {
+      toast.error("Fill in project, document type and a file");
+      return;
+    }
+    const idx = EVIDENCE.findIndex((x) => x.id === item.id);
+    if (idx >= 0) {
+      EVIDENCE[idx] = {
+        ...EVIDENCE[idx],
+        projectId,
+        documentType: finalType,
+        fileName: fileName.trim(),
+        status,
+        isOther,
+      };
+    }
+    toast.success("Evidence updated");
+    onOpenChange(false);
+    onSaved();
+  };
+
+  return (
+    <Dialog open={!!item} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit evidence</DialogTitle>
+          <DialogDescription>Update the project, document type, file, or status.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label>Project</Label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
+              <SelectContent>
+                {PROJECTS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Document type</Label>
+            <Select value={docType} onValueChange={setDocType}>
+              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+              <SelectContent>
+                {required.map((r) => (
+                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                ))}
+                <SelectItem value="__other">Other (supporting document)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {isOther && (
+            <div className="grid gap-2">
+              <Label>Describe the document</Label>
+              <Input value={otherName} onChange={(e) => setOtherName(e.target.value)} placeholder="e.g. Vendor spec sheet" />
+            </div>
+          )}
+          <div className="grid gap-2">
+            <Label>File name</Label>
+            <Input value={fileName} onChange={(e) => setFileName(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as EvidenceItem["status"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">pending</SelectItem>
+                <SelectItem value="verified">verified</SelectItem>
+                <SelectItem value="rejected">rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save}>Save changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
