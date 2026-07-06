@@ -1,6 +1,6 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { PROJECTS, BATCHES, LAB_RESULTS, EVIDENCE, EMISSIONS, DEPARTMENTS } from "@/lib/mock-data";
+import { PROJECTS, BATCHES, LAB_RESULTS, EVIDENCE, EMISSIONS, DEPARTMENTS, type EvidenceItem } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
