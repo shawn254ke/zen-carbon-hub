@@ -313,3 +313,30 @@ function downloadEvidence(it: EvidenceItem) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+function downloadLabResult(it: LabResult) {
+  const project = PROJECTS.find((p) => p.id === it.projectId);
+  const content =
+    `Zen Carbon — Lab Result (mock)\n` +
+    `==============================\n\n` +
+    `Test name:      ${it.testName}\n` +
+    `Project:        ${project?.code ?? it.projectId} — ${project?.name ?? ""}\n` +
+    `Batch:          ${it.batchId ?? "—"}\n` +
+    `Lab name:       ${it.labName}\n` +
+    `Sample date:    ${it.sampleDate}\n` +
+    `Report date:    ${it.reportDate || "—"}\n` +
+    `Result:         ${it.result}\n` +
+    `Status:         ${it.status}\n` +
+    `Reference id:   ${it.id}\n\n` +
+    `This is a placeholder for the original lab report, provided so\n` +
+    `reviewers can counter-check submissions before sending them to Isometric.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${it.testName}_${it.id}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
