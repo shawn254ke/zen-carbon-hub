@@ -693,8 +693,6 @@ function IsometricSubmission() {
   );
 }
 
-function MiniStat({
-
 function downloadEvidence(it: EvidenceItem) {
   const dept = DEPARTMENTS.find((d) => d.key === it.department)?.label ?? it.department;
   const project = PROJECTS.find((p) => p.id === it.projectId);
@@ -722,7 +720,7 @@ function downloadEvidence(it: EvidenceItem) {
   URL.revokeObjectURL(url);
 }
 
-function MiniStatInner({
+function MiniStat({
   label,
   value,
   tone = "muted",
