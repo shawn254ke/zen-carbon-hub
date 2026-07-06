@@ -8,10 +8,29 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department } from "@/lib/mock-data";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/verification")({
   component: VerificationReadinessPage,
@@ -54,6 +73,7 @@ function VerificationReadinessPage() {
           <TabsList>
             <TabsTrigger value="overview">Project overview</TabsTrigger>
             <TabsTrigger value="checklists">Manage checklists</TabsTrigger>
+            <TabsTrigger value="submit">Submit to Isometric</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -62,6 +82,10 @@ function VerificationReadinessPage() {
 
           <TabsContent value="checklists" className="mt-4 space-y-4">
             <ChecklistManager />
+          </TabsContent>
+
+          <TabsContent value="submit" className="mt-4 space-y-4">
+            <IsometricSubmission />
           </TabsContent>
         </Tabs>
       </div>
@@ -378,5 +402,297 @@ function DeptChecklistEditor({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+/* ---------- Isometric submission ---------- */
+
+type SubmissionRecord = {
+  submittedAt: string;
+  itemIds: string[];
+  reference: string;
+};
+
+const SUBMISSIONS: Record<string, SubmissionRecord> = {};
+
+function IsometricSubmission() {
+  const { checklist } = useChecklist();
+  const isometricProjects = useMemo(
+    () => PROJECTS.filter((p) => p.category === "industrial"),
+    [],
+  );
+  const [projectId, setProjectId] = useState<string>(isometricProjects[0]?.id ?? "");
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  const project = isometricProjects.find((p) => p.id === projectId);
+  const lastSubmission = SUBMISSIONS[projectId];
+
+  const groups = useMemo(() => {
+    return DEPARTMENTS.map((d) => {
+      const required = checklist[d.key];
+      const items = EVIDENCE.filter(
+        (e) => e.projectId === projectId && e.department === d.key,
+      );
+      const submittedTypes = new Set(items.map((i) => i.documentType));
+      const missing = required.filter((r) => !submittedTypes.has(r));
+      return { dept: d, required, items, missing };
+    });
+  }, [projectId, checklist, tick]);
+
+  const allItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const verifiedCount = allItems.filter((i) => i.status === "verified").length;
+  const rejectedCount = allItems.filter((i) => i.status === "rejected").length;
+  const pendingCount = allItems.filter((i) => i.status === "pending").length;
+  const totalMissing = groups.reduce((s, g) => s + g.missing.length, 0);
+  const reviewedCount = allItems.filter((i) => checked[i.id]).length;
+  const allReviewed = allItems.length > 0 && reviewedCount === allItems.length;
+  const canSubmit = allReviewed && rejectedCount === 0 && totalMissing === 0;
+
+  function toggleAll(v: boolean) {
+    const next: Record<string, boolean> = {};
+    if (v) allItems.forEach((i) => (next[i.id] = true));
+    setChecked(next);
+  }
+
+  function doSubmit() {
+    if (!project) return;
+    SUBMISSIONS[project.id] = {
+      submittedAt: new Date().toISOString(),
+      itemIds: allItems.map((i) => i.id),
+      reference: `ISO-${Date.now().toString(36).toUpperCase()}`,
+    };
+    setTick((t) => t + 1);
+    setConfirmOpen(false);
+    setChecked({});
+    toast.success("Submitted to Isometric", {
+      description: `Reference ${SUBMISSIONS[project.id].reference}`,
+    });
+  }
+
+  if (isometricProjects.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">No Isometric projects</CardTitle>
+          <CardDescription>
+            Only industrial projects registered under Isometric can be submitted here.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Send className="h-4 w-4" /> Submit evidence to Isometric API
+          </CardTitle>
+          <CardDescription>
+            Review every submitted document for an Isometric project, then submit the complete
+            evidence package to the Isometric registry.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:justify-between">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Project</label>
+              <Select value={projectId} onValueChange={(v) => { setProjectId(v); setChecked({}); }}>
+                <SelectTrigger className="w-[320px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {isometricProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.code} — {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {project && (
+                <div className="text-xs text-muted-foreground">
+                  Registry: {project.registry ?? "—"} · Methodology:{" "}
+                  {project.methodology ?? "—"}
+                </div>
+              )}
+            </div>
+            {lastSubmission && (
+              <div className="text-xs text-muted-foreground text-right">
+                <div>Last submitted {new Date(lastSubmission.submittedAt).toLocaleString()}</div>
+                <div className="font-mono">Ref: {lastSubmission.reference}</div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <MiniStat label="Documents" value={String(allItems.length)} />
+            <MiniStat label="Verified" value={String(verifiedCount)} tone="success" />
+            <MiniStat label="Pending" value={String(pendingCount)} tone={pendingCount ? "warn" : "muted"} />
+            <MiniStat label="Missing required" value={String(totalMissing)} tone={totalMissing ? "danger" : "success"} />
+          </div>
+
+          {(totalMissing > 0 || rejectedCount > 0) && (
+            <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                {totalMissing > 0 && <div>{totalMissing} required document(s) missing across departments.</div>}
+                {rejectedCount > 0 && <div>{rejectedCount} document(s) marked rejected — resolve before submission.</div>}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Reviewed <span className="font-medium text-foreground">{reviewedCount}</span> of{" "}
+              {allItems.length}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => toggleAll(true)} disabled={!allItems.length}>
+                Mark all reviewed
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => toggleAll(false)} disabled={!reviewedCount}>
+                Clear
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {groups.map((g) => (
+        <Card key={g.dept.key}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm">{g.dept.label}</CardTitle>
+                <CardDescription className="text-xs">
+                  {g.items.length} submitted · {g.missing.length} missing
+                </CardDescription>
+              </div>
+              {g.missing.length === 0 && g.required.length > 0 && (
+                <Badge variant="secondary" className="gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Complete
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {g.items.length === 0 ? (
+              <div className="text-sm text-muted-foreground italic">No documents submitted.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">Ok</TableHead>
+                    <TableHead>Document type</TableHead>
+                    <TableHead>File</TableHead>
+                    <TableHead>Uploaded by</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {g.items.map((it) => (
+                    <TableRow key={it.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={!!checked[it.id]}
+                          onCheckedChange={(v) =>
+                            setChecked((prev) => ({ ...prev, [it.id]: !!v }))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{it.documentType}</TableCell>
+                      <TableCell className="text-muted-foreground">{it.fileName}</TableCell>
+                      <TableCell>{it.uploadedBy}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            it.status === "verified"
+                              ? "default"
+                              : it.status === "rejected"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                        >
+                          {it.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            {g.missing.length > 0 && (
+              <div className="mt-3 text-xs text-destructive">
+                Missing: {g.missing.join(", ")}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
+      <div className="sticky bottom-4 z-10">
+        <Card className="border-primary/40">
+          <CardContent className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="text-sm">
+              <div className="font-medium flex items-center gap-2">
+                <FileCheck2 className="h-4 w-4" /> Ready for submission
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {canSubmit
+                  ? "All documents reviewed and complete."
+                  : "Review every document and resolve any issues to enable submission."}
+              </div>
+            </div>
+            <Button disabled={!canSubmit} onClick={() => setConfirmOpen(true)}>
+              <Send className="h-4 w-4 mr-1" /> Submit to Isometric
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit to Isometric?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will send {allItems.length} document(s) for {project?.code} to the Isometric
+              registry API. You have confirmed all evidence has been reviewed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={doSubmit}>Confirm submission</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  tone = "muted",
+}: {
+  label: string;
+  value: string;
+  tone?: "muted" | "success" | "warn" | "danger";
+}) {
+  const toneCls =
+    tone === "success"
+      ? "text-primary"
+      : tone === "warn"
+        ? "text-warning"
+        : tone === "danger"
+          ? "text-destructive"
+          : "text-foreground";
+  return (
+    <div className="rounded-md border p-3">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={"text-xl font-semibold mt-0.5 tabular-nums " + toneCls}>{value}</div>
+    </div>
   );
 }
