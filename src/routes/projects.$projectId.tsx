@@ -1,12 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { PROJECTS, BATCHES, LAB_RESULTS, EVIDENCE, EMISSIONS, DEPARTMENTS } from "@/lib/mock-data";
+import { PROJECTS, BATCHES, LAB_RESULTS, EVIDENCE, EMISSIONS, DEPARTMENTS, type EvidenceItem } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/projects/$projectId")({
@@ -144,22 +144,51 @@ function ProjectDetail() {
               const items = evidence.filter((e) => e.department === d.key);
               return (
                 <Card key={d.key}>
-                  <CardHeader>
-                    <CardTitle className="text-base">{d.label}</CardTitle>
-                    <CardDescription>{items.length} document(s)</CardDescription>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">{d.label}</CardTitle>
+                      <CardDescription>{items.length} document(s)</CardDescription>
+                    </div>
+                    {items.length > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => items.forEach(downloadEvidence)}>
+                        <Download className="h-4 w-4 mr-1" /> Download all
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {items.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No documents submitted.</p>
                     ) : (
-                      <ul className="text-sm space-y-1">
-                        {items.map((e) => (
-                          <li key={e.id} className="flex justify-between border-b py-1.5 last:border-0">
-                            <span>{e.documentType} — {e.fileName}</span>
-                            <Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge>
-                          </li>
-                        ))}
-                      </ul>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Document</TableHead>
+                            <TableHead>File</TableHead>
+                            <TableHead>Uploaded by</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {items.map((e) => (
+                            <TableRow key={e.id}>
+                              <TableCell className="font-medium">{e.documentType}</TableCell>
+                              <TableCell>{e.fileName}</TableCell>
+                              <TableCell>{e.uploadedBy}</TableCell>
+                              <TableCell>{e.uploadedAt}</TableCell>
+                              <TableCell>
+                                <Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="outline" onClick={() => downloadEvidence(e)}>
+                                  <Download className="h-4 w-4 mr-1" /> Download
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     )}
                   </CardContent>
                 </Card>
@@ -244,4 +273,31 @@ function SensorTile({ label, value, trend }: { label: string; value: string; tre
       <div className="text-xs text-muted-foreground mt-0.5">{trend}</div>
     </div>
   );
+}
+
+function downloadEvidence(it: EvidenceItem) {
+  const dept = DEPARTMENTS.find((d) => d.key === it.department)?.label ?? it.department;
+  const project = PROJECTS.find((p) => p.id === it.projectId);
+  const content =
+    `Zen Carbon — Evidence Document (mock)\n` +
+    `====================================\n\n` +
+    `File name:      ${it.fileName}\n` +
+    `Document type:  ${it.documentType}\n` +
+    `Department:     ${dept}\n` +
+    `Project:        ${project?.code ?? it.projectId} — ${project?.name ?? ""}\n` +
+    `Uploaded by:    ${it.uploadedBy}\n` +
+    `Uploaded at:    ${it.uploadedAt}\n` +
+    `Status:         ${it.status}\n` +
+    `Reference id:   ${it.id}\n\n` +
+    `This is a placeholder for the original uploaded document, provided so\n` +
+    `reviewers can counter-check submissions before sending them to Isometric.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = it.fileName.endsWith(".txt") ? it.fileName : `${it.fileName}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
