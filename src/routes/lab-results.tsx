@@ -101,7 +101,12 @@ function LabResultsPage() {
           </TabsList>
 
           <TabsContent value="results" className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {LAB_RESULTS.length > 0 && (
+                <Button variant="outline" onClick={() => LAB_RESULTS.forEach(downloadLabResult)}>
+                  <Download className="h-4 w-4 mr-1" /> Download all
+                </Button>
+              )}
               {can("lab:upload") && <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>}
             </div>
             <Card>
@@ -112,7 +117,7 @@ function LabResultsPage() {
           <CardContent>
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead>
+                <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {LAB_RESULTS.map((l) => {
@@ -126,6 +131,11 @@ function LabResultsPage() {
                       <TableCell>{l.sampleDate}</TableCell>
                       <TableCell>{l.result}</TableCell>
                       <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
+                          <Download className="h-4 w-4 mr-1" /> Download
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
