@@ -198,11 +198,18 @@ function ProjectDetail() {
 
           <TabsContent value="lab" className="mt-4">
             <Card>
-              <CardHeader><CardTitle>Lab results</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Lab results</CardTitle>
+                {labs.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => labs.forEach(downloadLabResult)}>
+                    <Download className="h-4 w-4 mr-1" /> Download all
+                  </Button>
+                )}
+              </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader><TableRow>
-                    <TableHead>Test</TableHead><TableHead>Batch</TableHead><TableHead>Lab</TableHead><TableHead>Sampled</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead>
+                    <TableHead>Test</TableHead><TableHead>Batch</TableHead><TableHead>Lab</TableHead><TableHead>Sampled</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
                     {labs.map((l) => (
@@ -213,9 +220,14 @@ function ProjectDetail() {
                         <TableCell>{l.sampleDate}</TableCell>
                         <TableCell>{l.result}</TableCell>
                         <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
+                            <Download className="h-4 w-4 mr-1" /> Download
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
-                    {labs.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No lab results yet.</TableCell></TableRow>}
+                    {labs.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No lab results yet.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </CardContent>
