@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department } from "@/lib/mock-data";
+import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2, Download } from "lucide-react";
+import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department, type EvidenceItem } from "@/lib/mock-data";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -590,6 +590,7 @@ function IsometricSubmission() {
                     <TableHead>File</TableHead>
                     <TableHead>Uploaded by</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -619,10 +620,30 @@ function IsometricSubmission() {
                           {it.status}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadEvidence(it)}
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1" /> Download
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            )}
+            {g.items.length > 0 && (
+              <div className="mt-3 flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => g.items.forEach(downloadEvidence)}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" /> Download all ({g.items.length})
+                </Button>
+              </div>
             )}
             {g.missing.length > 0 && (
               <div className="mt-3 text-xs text-destructive">
@@ -670,6 +691,33 @@ function IsometricSubmission() {
       </AlertDialog>
     </div>
   );
+}
+
+function downloadEvidence(it: EvidenceItem) {
+  const dept = DEPARTMENTS.find((d) => d.key === it.department)?.label ?? it.department;
+  const project = PROJECTS.find((p) => p.id === it.projectId);
+  const content =
+    `Zen Carbon — Evidence Document (mock)\n` +
+    `====================================\n\n` +
+    `File name:      ${it.fileName}\n` +
+    `Document type:  ${it.documentType}\n` +
+    `Department:     ${dept}\n` +
+    `Project:        ${project?.code ?? it.projectId} — ${project?.name ?? ""}\n` +
+    `Uploaded by:    ${it.uploadedBy}\n` +
+    `Uploaded at:    ${it.uploadedAt}\n` +
+    `Status:         ${it.status}\n` +
+    `Reference id:   ${it.id}\n\n` +
+    `This is a placeholder for the original uploaded document, provided so\n` +
+    `reviewers can counter-check submissions before sending them to Isometric.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = it.fileName.endsWith(".txt") ? it.fileName : `${it.fileName}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function MiniStat({
