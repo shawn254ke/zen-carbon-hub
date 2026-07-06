@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -317,7 +317,7 @@ function EditEvidenceDialog({
   const isOther = docType === "__other";
 
   // Sync when item opens
-  useMemo(() => {
+  useEffect(() => {
     if (item) {
       setProjectId(item.projectId);
       const known = required.includes(item.documentType);
