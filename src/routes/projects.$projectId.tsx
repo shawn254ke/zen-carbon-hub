@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/projects/$projectId")({
