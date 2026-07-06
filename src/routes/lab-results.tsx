@@ -361,3 +361,30 @@ function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
     </div>
   );
 }
+
+function downloadLabResult(l: LabResult) {
+  const project = PROJECTS.find((p) => p.id === l.projectId);
+  const content =
+    `Zen Carbon — Laboratory Result (mock)\n` +
+    `====================================\n\n` +
+    `Test:          ${l.testName}\n` +
+    `Project:       ${project?.code ?? l.projectId} — ${project?.name ?? ""}\n` +
+    `Batch:         ${l.batchId ?? "—"}\n` +
+    `Lab:           ${l.labName}\n` +
+    `Sample date:   ${l.sampleDate}\n` +
+    `Report date:   ${l.reportDate || "—"}\n` +
+    `Result:        ${l.result}\n` +
+    `Status:        ${l.status}\n` +
+    `Reference id:  ${l.id}\n\n` +
+    `This is a placeholder for the original lab report, provided so\n` +
+    `reviewers can counter-check lab results before verification.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${l.testName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${l.id}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
