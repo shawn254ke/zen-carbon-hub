@@ -8,10 +8,29 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department } from "@/lib/mock-data";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/verification")({
   component: VerificationReadinessPage,
@@ -54,6 +73,7 @@ function VerificationReadinessPage() {
           <TabsList>
             <TabsTrigger value="overview">Project overview</TabsTrigger>
             <TabsTrigger value="checklists">Manage checklists</TabsTrigger>
+            <TabsTrigger value="submit">Submit to Isometric</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -62,6 +82,10 @@ function VerificationReadinessPage() {
 
           <TabsContent value="checklists" className="mt-4 space-y-4">
             <ChecklistManager />
+          </TabsContent>
+
+          <TabsContent value="submit" className="mt-4 space-y-4">
+            <IsometricSubmission />
           </TabsContent>
         </Tabs>
       </div>
