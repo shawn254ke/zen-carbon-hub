@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin } from "lucide-react";
-import { LAB_RESULTS, PROJECTS } from "@/lib/mock-data";
+import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download } from "lucide-react";
+import { LAB_RESULTS, PROJECTS, type LabResult } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -101,7 +101,12 @@ function LabResultsPage() {
           </TabsList>
 
           <TabsContent value="results" className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {LAB_RESULTS.length > 0 && (
+                <Button variant="outline" onClick={() => LAB_RESULTS.forEach(downloadLabResult)}>
+                  <Download className="h-4 w-4 mr-1" /> Download all
+                </Button>
+              )}
               {can("lab:upload") && <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>}
             </div>
             <Card>
@@ -112,7 +117,7 @@ function LabResultsPage() {
           <CardContent>
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead>
+                <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {LAB_RESULTS.map((l) => {
@@ -126,6 +131,11 @@ function LabResultsPage() {
                       <TableCell>{l.sampleDate}</TableCell>
                       <TableCell>{l.result}</TableCell>
                       <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
+                          <Download className="h-4 w-4 mr-1" /> Download
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -350,4 +360,31 @@ function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
       </div>
     </div>
   );
+}
+
+function downloadLabResult(l: LabResult) {
+  const project = PROJECTS.find((p) => p.id === l.projectId);
+  const content =
+    `Zen Carbon — Laboratory Result (mock)\n` +
+    `====================================\n\n` +
+    `Test:          ${l.testName}\n` +
+    `Project:       ${project?.code ?? l.projectId} — ${project?.name ?? ""}\n` +
+    `Batch:         ${l.batchId ?? "—"}\n` +
+    `Lab:           ${l.labName}\n` +
+    `Sample date:   ${l.sampleDate}\n` +
+    `Report date:   ${l.reportDate || "—"}\n` +
+    `Result:        ${l.result}\n` +
+    `Status:        ${l.status}\n` +
+    `Reference id:  ${l.id}\n\n` +
+    `This is a placeholder for the original lab report, provided so\n` +
+    `reviewers can counter-check lab results before verification.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${l.testName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${l.id}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
