@@ -103,9 +103,14 @@ function LabResultsPage() {
 
           <TabsContent value="results" className="space-y-4">
             <div className="flex justify-end gap-2">
+              {Object.keys(analyses).length > 0 && (
+                <Button variant="outline" onClick={() => downloadAllAnalyses(analyses)}>
+                  <Download className="h-4 w-4 mr-1" /> Download all analyses
+                </Button>
+              )}
               {LAB_RESULTS.length > 0 && (
                 <Button variant="outline" onClick={() => LAB_RESULTS.forEach(downloadLabResult)}>
-                  <Download className="h-4 w-4 mr-1" /> Download all
+                  <Download className="h-4 w-4 mr-1" /> Download all reports
                 </Button>
               )}
               {can("lab:upload") && <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>}
@@ -150,6 +155,11 @@ function LabResultsPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <AnalysisDialog result={l} existing={a} onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
+                          {a && (
+                            <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
+                              <Download className="h-4 w-4 mr-1" /> Analysis
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
                             <Download className="h-4 w-4 mr-1" /> Report
                           </Button>
