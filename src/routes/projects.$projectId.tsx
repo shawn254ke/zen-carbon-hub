@@ -6,8 +6,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Download } from "lucide-react";
+import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
+
+type Analysis = {
+  fileName: string;
+  summary: string;
+  keyFindings?: string;
+  recommendation?: string;
+  author: string;
+  uploadedOn: string;
+};
+
+const ANALYSIS_KEY = "zc_lab_analyses_v1";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: ProjectDetail,
