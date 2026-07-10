@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download } from "lucide-react";
+import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download, FlaskConical, Paperclip } from "lucide-react";
 import { LAB_RESULTS, PROJECTS, type LabResult } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -84,6 +84,7 @@ function useLabs() {
 
 function LabResultsPage() {
   const { can } = useAuth();
+  const { analyses, save, remove } = useAnalyses();
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
@@ -117,11 +118,12 @@ function LabResultsPage() {
           <CardContent>
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
+                <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead>Analysis</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {LAB_RESULTS.map((l) => {
                   const p = PROJECTS.find((x) => x.id === l.projectId);
+                  const a = analyses[l.id];
                   return (
                     <TableRow key={l.id}>
                       <TableCell>{p?.code}</TableCell>
@@ -131,10 +133,27 @@ function LabResultsPage() {
                       <TableCell>{l.sampleDate}</TableCell>
                       <TableCell>{l.result}</TableCell>
                       <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
+                      <TableCell className="max-w-[280px]">
+                        {a ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Paperclip className="h-3 w-3 text-primary" />
+                              <span className="truncate font-medium">{a.fileName}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{a.summary}</p>
+                            <div className="text-[10px] text-muted-foreground">by {a.author} · {a.uploadedOn}</div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No analysis</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
-                          <Download className="h-4 w-4 mr-1" /> Download
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <AnalysisDialog result={l} existing={a} onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
+                          <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
+                            <Download className="h-4 w-4 mr-1" /> Report
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -143,6 +162,8 @@ function LabResultsPage() {
             </Table>
           </CardContent>
             </Card>
+
+            <AnalysisSummaryCard analyses={analyses} />
           </TabsContent>
 
           <TabsContent value="labs" className="space-y-4">
