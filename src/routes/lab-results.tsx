@@ -495,12 +495,13 @@ function useAnalyses() {
 }
 
 function AnalysisDialog({
-  result, existing, onSave, onRemove,
+  result, existing, onSave, onRemove, canEdit,
 }: {
   result: LabResult;
   existing?: Analysis;
   onSave: (a: Analysis) => void;
   onRemove: () => void;
+  canEdit?: boolean;
 }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
