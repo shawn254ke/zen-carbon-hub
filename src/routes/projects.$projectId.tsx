@@ -227,34 +227,64 @@ function ProjectDetail() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Lab results</CardTitle>
-                {labs.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={() => labs.forEach(downloadLabResult)}>
-                    <Download className="h-4 w-4 mr-1" /> Download all
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  {projectAnalyses.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => projectAnalyses.forEach((l) => {
+                      const a = analyses[l.id];
+                      if (a) downloadAnalysis(l, a);
+                    })}>
+                      <Download className="h-4 w-4 mr-1" /> Download all analyses
+                    </Button>
+                  )}
+                  {labs.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => labs.forEach(downloadLabResult)}>
+                      <Download className="h-4 w-4 mr-1" /> Download all reports
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader><TableRow>
-                    <TableHead>Test</TableHead><TableHead>Batch</TableHead><TableHead>Lab</TableHead><TableHead>Sampled</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
+                    <TableHead>Test</TableHead><TableHead>Batch</TableHead><TableHead>Lab</TableHead><TableHead>Sampled</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead>Analysis</TableHead><TableHead className="text-right">Actions</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
-                    {labs.map((l) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="font-medium">{l.testName}</TableCell>
-                        <TableCell>{l.batchId ?? "—"}</TableCell>
-                        <TableCell>{l.labName}</TableCell>
-                        <TableCell>{l.sampleDate}</TableCell>
-                        <TableCell>{l.result}</TableCell>
-                        <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
-                            <Download className="h-4 w-4 mr-1" /> Download
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {labs.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No lab results yet.</TableCell></TableRow>}
+                    {labs.map((l) => {
+                      const a = analyses[l.id];
+                      return (
+                        <TableRow key={l.id}>
+                          <TableCell className="font-medium">{l.testName}</TableCell>
+                          <TableCell>{l.batchId ?? "—"}</TableCell>
+                          <TableCell>{l.labName}</TableCell>
+                          <TableCell>{l.sampleDate}</TableCell>
+                          <TableCell>{l.result}</TableCell>
+                          <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
+                          <TableCell>
+                            {a ? (
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <FlaskConical className="h-3.5 w-3.5 text-primary" />
+                                <span className="truncate max-w-[160px]" title={a.fileName}>{a.fileName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No analysis</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {a && (
+                                <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
+                                  <Download className="h-4 w-4 mr-1" /> Analysis
+                                </Button>
+                              )}
+                              <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
+                                <Download className="h-4 w-4 mr-1" /> Report
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {labs.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No lab results yet.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </CardContent>
