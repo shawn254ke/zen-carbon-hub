@@ -18,7 +18,7 @@ export const Route = createFileRoute("/lab-results")({
   component: LabResultsPage,
 });
 
-type LabDoc = { id: string; name: string; type: string; expiresOn?: string };
+type LabDoc = { id: string; name: string; type: string; expiresOn?: string; dataUrl?: string; size?: number; mime?: string };
 type Lab = {
   id: string;
   name: string;
@@ -335,15 +335,22 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
                           <div className="min-w-0">
                             <div className="text-sm font-medium truncate">{d.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {d.type}{d.expiresOn ? ` · expires ${d.expiresOn}` : ""}
+                              {d.type}{d.size ? ` · ${(d.size / 1024).toFixed(1)} KB` : ""}{d.expiresOn ? ` · expires ${d.expiresOn}` : ""}
                             </div>
                           </div>
                         </div>
-                        {canManage && (
-                          <Button variant="ghost" size="icon" onClick={() => removeDoc(lab.id, d.id)} aria-label="Remove document">
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {d.dataUrl && (
+                            <Button variant="ghost" size="icon" onClick={() => downloadDoc(d)} aria-label="Download document">
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canManage && (
+                            <Button variant="ghost" size="icon" onClick={() => removeDoc(lab.id, d.id)} aria-label="Remove document">
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -434,14 +441,16 @@ const DOC_TYPES = [
 ];
 
 function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
-  const [name, setName] = useState("");
   const [type, setType] = useState(DOC_TYPES[0]);
   const [expires, setExpires] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inputId = useMemo(() => `doc-file-${Math.random().toString(36).slice(2, 8)}`, []);
 
   return (
     <div className="mt-3 rounded-md border border-dashed p-3 space-y-2">
       <div className="grid gap-2 sm:grid-cols-3">
-        <Input placeholder="Document file name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input id={inputId} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         <select
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
           value={type}
@@ -451,21 +460,56 @@ function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
         </select>
         <Input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
       </div>
+      {file && (
+        <p className="text-xs text-muted-foreground">Selected: {file.name} · {(file.size / 1024).toFixed(1)} KB</p>
+      )}
       <div className="flex justify-end">
         <Button
           size="sm"
           variant="outline"
-          disabled={!name.trim()}
-          onClick={() => {
-            onAdd({ id: `d_${Date.now()}`, name: name.trim(), type, expiresOn: expires || undefined });
-            setName(""); setExpires("");
+          disabled={!file || busy}
+          onClick={async () => {
+            if (!file) return;
+            setBusy(true);
+            try {
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+              });
+              onAdd({
+                id: `d_${Date.now()}`,
+                name: file.name,
+                type,
+                expiresOn: expires || undefined,
+                dataUrl,
+                size: file.size,
+                mime: file.type || undefined,
+              });
+              setFile(null); setExpires("");
+              const el = document.getElementById(inputId) as HTMLInputElement | null;
+              if (el) el.value = "";
+            } finally {
+              setBusy(false);
+            }
           }}
         >
-          <Upload className="h-3.5 w-3.5 mr-1" /> Add document
+          <Upload className="h-3.5 w-3.5 mr-1" /> {busy ? "Uploading…" : "Upload document"}
         </Button>
       </div>
     </div>
   );
+}
+
+function downloadDoc(d: LabDoc) {
+  if (!d.dataUrl) return;
+  const a = document.createElement("a");
+  a.href = d.dataUrl;
+  a.download = d.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function downloadLabResult(l: LabResult) {
