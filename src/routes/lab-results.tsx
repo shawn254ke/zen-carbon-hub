@@ -498,6 +498,26 @@ function useAnalyses() {
   };
 }
 
+const UPLOADED_RESULTS_KEY = "zc_uploaded_lab_results_v1";
+
+function useLabResults() {
+  const [results, setResults] = useState<LabResult[]>([]);
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(UPLOADED_RESULTS_KEY) : null;
+    if (raw) {
+      try { setResults(JSON.parse(raw)); } catch { /* ignore */ }
+    }
+  }, []);
+  const persist = (next: LabResult[]) => {
+    setResults(next);
+    window.localStorage.setItem(UPLOADED_RESULTS_KEY, JSON.stringify(next));
+  };
+  return {
+    results,
+    addResult: (r: LabResult) => persist([r, ...results]),
+  };
+}
+
 function AnalysisDialog({
   result, existing, onSave, onRemove, canEdit,
 }: {
