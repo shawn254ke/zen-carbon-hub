@@ -138,7 +138,7 @@ function LabResultsPage() {
                 <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead>Analysis</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {LAB_RESULTS.map((l) => {
+                {allResults.map((l) => {
                   const p = PROJECTS.find((x) => x.id === l.projectId);
                   const a = analyses[l.id];
                   return (
