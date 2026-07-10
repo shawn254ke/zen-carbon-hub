@@ -85,6 +85,7 @@ function useLabs() {
 function LabResultsPage() {
   const { can } = useAuth();
   const { analyses, save, remove } = useAnalyses();
+  const canEditAnalysis = can("admin:all") || can("lab:upload");
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
@@ -154,7 +155,9 @@ function LabResultsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <AnalysisDialog result={l} existing={a} onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
+                          {canEditAnalysis && (
+                            <AnalysisDialog result={l} existing={a} canEdit onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
+                          )}
                           {a && (
                             <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
                               <Download className="h-4 w-4 mr-1" /> Analysis
@@ -492,12 +495,13 @@ function useAnalyses() {
 }
 
 function AnalysisDialog({
-  result, existing, onSave, onRemove,
+  result, existing, onSave, onRemove, canEdit,
 }: {
   result: LabResult;
   existing?: Analysis;
   onSave: (a: Analysis) => void;
   onRemove: () => void;
+  canEdit?: boolean;
 }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
