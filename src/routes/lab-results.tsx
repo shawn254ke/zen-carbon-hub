@@ -130,7 +130,7 @@ function LabResultsPage() {
             <Card>
           <CardHeader>
             <CardTitle>All results</CardTitle>
-            <CardDescription>{LAB_RESULTS.length} total records</CardDescription>
+            <CardDescription>{allResults.length} total records</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
