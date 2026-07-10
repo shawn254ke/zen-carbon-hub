@@ -6,8 +6,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Download } from "lucide-react";
+import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
+
+type Analysis = {
+  fileName: string;
+  summary: string;
+  keyFindings?: string;
+  recommendation?: string;
+  author: string;
+  uploadedOn: string;
+};
+
+const ANALYSIS_KEY = "zc_lab_analyses_v1";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: ProjectDetail,
@@ -28,13 +40,28 @@ export const Route = createFileRoute("/projects/$projectId")({
   },
 });
 
+
+function useAnalyses() {
+  const [analyses, setAnalyses] = useState<Record<string, Analysis>>({});
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(ANALYSIS_KEY) : null;
+    if (raw) {
+      try { setAnalyses(JSON.parse(raw)); } catch { /* ignore */ }
+    }
+  }, []);
+  return { analyses };
+}
+
 function ProjectDetail() {
   const project = Route.useLoaderData();
   const { can } = useAuth();
+  const { analyses } = useAnalyses();
   const batches = BATCHES.filter((b) => b.projectId === project.id);
   const labs = LAB_RESULTS.filter((l) => l.projectId === project.id);
   const evidence = EVIDENCE.filter((e) => e.projectId === project.id);
   const emissions = EMISSIONS.filter((e) => e.projectId === project.id);
+
+  const projectAnalyses = labs.filter((l) => analyses[l.id]);
 
   return (
     <AppShell title={project.name}>
@@ -200,34 +227,64 @@ function ProjectDetail() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Lab results</CardTitle>
-                {labs.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={() => labs.forEach(downloadLabResult)}>
-                    <Download className="h-4 w-4 mr-1" /> Download all
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  {projectAnalyses.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => projectAnalyses.forEach((l) => {
+                      const a = analyses[l.id];
+                      if (a) downloadAnalysis(l, a);
+                    })}>
+                      <Download className="h-4 w-4 mr-1" /> Download all analyses
+                    </Button>
+                  )}
+                  {labs.length > 0 && (
+                    <Button variant="outline" size="sm" onClick={() => labs.forEach(downloadLabResult)}>
+                      <Download className="h-4 w-4 mr-1" /> Download all reports
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader><TableRow>
-                    <TableHead>Test</TableHead><TableHead>Batch</TableHead><TableHead>Lab</TableHead><TableHead>Sampled</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead>
+                    <TableHead>Test</TableHead><TableHead>Batch</TableHead><TableHead>Lab</TableHead><TableHead>Sampled</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead>Analysis</TableHead><TableHead className="text-right">Actions</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
-                    {labs.map((l) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="font-medium">{l.testName}</TableCell>
-                        <TableCell>{l.batchId ?? "—"}</TableCell>
-                        <TableCell>{l.labName}</TableCell>
-                        <TableCell>{l.sampleDate}</TableCell>
-                        <TableCell>{l.result}</TableCell>
-                        <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
-                            <Download className="h-4 w-4 mr-1" /> Download
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {labs.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No lab results yet.</TableCell></TableRow>}
+                    {labs.map((l) => {
+                      const a = analyses[l.id];
+                      return (
+                        <TableRow key={l.id}>
+                          <TableCell className="font-medium">{l.testName}</TableCell>
+                          <TableCell>{l.batchId ?? "—"}</TableCell>
+                          <TableCell>{l.labName}</TableCell>
+                          <TableCell>{l.sampleDate}</TableCell>
+                          <TableCell>{l.result}</TableCell>
+                          <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
+                          <TableCell>
+                            {a ? (
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <FlaskConical className="h-3.5 w-3.5 text-primary" />
+                                <span className="truncate max-w-[160px]" title={a.fileName}>{a.fileName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No analysis</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {a && (
+                                <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
+                                  <Download className="h-4 w-4 mr-1" /> Analysis
+                                </Button>
+                              )}
+                              <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
+                                <Download className="h-4 w-4 mr-1" /> Report
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {labs.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No lab results yet.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -338,5 +395,35 @@ function downloadLabResult(it: LabResult) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadAnalysis(l: LabResult, a: Analysis) {
+  const project = PROJECTS.find((p) => p.id === l.projectId);
+  const content =
+    `Zen Carbon — Lab Result Analysis (mock)\n` +
+    `=====================================\n\n` +
+    `Analysis file: ${a.fileName}\n` +
+    `Test:          ${l.testName}\n` +
+    `Project:       ${project?.code ?? l.projectId} — ${project?.name ?? ""}\n` +
+    `Batch:         ${l.batchId ?? "—"}\n` +
+    `Lab:           ${l.labName}\n` +
+    `Result:        ${l.result}\n` +
+    `Status:        ${l.status}\n` +
+    `Author:        ${a.author}\n` +
+    `Uploaded on:   ${a.uploadedOn}\n\n` +
+    `Summary:\n${a.summary}\n\n` +
+    (a.keyFindings ? `Key findings:\n${a.keyFindings}\n\n` : "") +
+    (a.recommendation ? `Recommendation:\n${a.recommendation}\n\n` : "") +
+    `This is a placeholder for the uploaded analysis record, provided so\n` +
+    `reviewers can counter-check the analysis before verification.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const el = document.createElement("a");
+  el.href = url;
+  el.download = `analysis_${l.testName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${l.id}.txt`;
+  document.body.appendChild(el);
+  el.click();
+  el.remove();
   URL.revokeObjectURL(url);
 }
