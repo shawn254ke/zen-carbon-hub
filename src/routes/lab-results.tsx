@@ -525,6 +525,125 @@ function useLabResults() {
   };
 }
 
+function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void }) {
+  const { user } = useAuth();
+  const [testName, setTestName] = useState("");
+  const [projectId, setProjectId] = useState(PROJECTS[0]?.id ?? "");
+  const [batchId, setBatchId] = useState("");
+  const [labName, setLabName] = useState("");
+  const [sampleDate, setSampleDate] = useState("");
+  const [reportDate, setReportDate] = useState("");
+  const [result, setResult] = useState("");
+  const [status, setStatus] = useState<LabResult["status"]>("reported");
+  const [fileName, setFileName] = useState("");
+
+  const selectedProject = PROJECTS.find((p) => p.id === projectId);
+  const batches = selectedProject ? BATCHES.filter((b) => b.projectId === projectId) : [];
+
+  const valid = testName.trim() && labName.trim() && sampleDate.trim() && result.trim() && fileName.trim();
+
+  return (
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Upload lab result</DialogTitle>
+        <DialogDescription>Record a new lab result and attach the report file.</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="lr-test">Test name</Label>
+          <Input id="lr-test" value={testName} onChange={(e) => setTestName(e.target.value)} placeholder="e.g. Fixed carbon %" />
+        </div>
+        <div className="grid gap-1.5 grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-project">Project</Label>
+            <select
+              id="lr-project"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+              value={projectId}
+              onChange={(e) => { setProjectId(e.target.value); setBatchId(""); }}
+            >
+              {PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-batch">Batch (optional)</Label>
+            <select
+              id="lr-batch"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+              value={batchId}
+              onChange={(e) => setBatchId(e.target.value)}
+            >
+              <option value="">—</option>
+              {batches.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="lr-lab">Laboratory</Label>
+          <Input id="lr-lab" value={labName} onChange={(e) => setLabName(e.target.value)} placeholder="e.g. SGS Nairobi" />
+        </div>
+        <div className="grid gap-1.5 grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-sampled">Sample date</Label>
+            <Input id="lr-sampled" type="date" value={sampleDate} onChange={(e) => setSampleDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-reported">Report date</Label>
+            <Input id="lr-reported" type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="lr-result">Result</Label>
+          <Input id="lr-result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g. 72.4%" />
+        </div>
+        <div className="grid gap-1.5 grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-status">Status</Label>
+            <select
+              id="lr-status"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as LabResult["status"])}
+            >
+              <option value="reported">Reported</option>
+              <option value="in_progress">In progress</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-file">Report file</Label>
+            <Input
+              id="lr-file"
+              type="file"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) setFileName(f.name); }}
+            />
+          </div>
+        </div>
+        {fileName && <p className="text-xs text-muted-foreground">Selected report: {fileName}</p>}
+      </div>
+      <DialogFooter>
+        <Button
+          disabled={!valid}
+          onClick={() => {
+            onSubmit({
+              id: `lr_${Date.now()}`,
+              projectId,
+              batchId: batchId || undefined,
+              testName: testName.trim(),
+              labName: labName.trim(),
+              sampleDate,
+              reportDate,
+              result: result.trim(),
+              status,
+            });
+          }}
+        >
+          <Upload className="h-4 w-4 mr-1" /> Save result
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
 function AnalysisDialog({
   result, existing, onSave, onRemove, canEdit,
 }: {
