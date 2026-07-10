@@ -420,6 +420,43 @@ function downloadLabResult(l: LabResult) {
   URL.revokeObjectURL(url);
 }
 
+function downloadAnalysis(l: LabResult, a: Analysis) {
+  const project = PROJECTS.find((p) => p.id === l.projectId);
+  const content =
+    `Zen Carbon — Lab Result Analysis (mock)\n` +
+    `=====================================\n\n` +
+    `Analysis file: ${a.fileName}\n` +
+    `Test:          ${l.testName}\n` +
+    `Project:       ${project?.code ?? l.projectId} — ${project?.name ?? ""}\n` +
+    `Batch:         ${l.batchId ?? "—"}\n` +
+    `Lab:           ${l.labName}\n` +
+    `Result:        ${l.result}\n` +
+    `Status:        ${l.status}\n` +
+    `Author:        ${a.author}\n` +
+    `Uploaded on:   ${a.uploadedOn}\n\n` +
+    `Summary:\n${a.summary}\n\n` +
+    (a.keyFindings ? `Key findings:\n${a.keyFindings}\n\n` : "") +
+    (a.recommendation ? `Recommendation:\n${a.recommendation}\n\n` : "") +
+    `This is a placeholder for the uploaded analysis record, provided so\n` +
+    `reviewers can counter-check the analysis before verification.\n`;
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const el = document.createElement("a");
+  el.href = url;
+  el.download = `analysis_${l.testName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${l.id}.txt`;
+  document.body.appendChild(el);
+  el.click();
+  el.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadAllAnalyses(analyses: Record<string, Analysis>) {
+  Object.entries(analyses).forEach(([id, a]) => {
+    const l = LAB_RESULTS.find((x) => x.id === id);
+    if (l) downloadAnalysis(l, a);
+  });
+}
+
 type Analysis = {
   fileName: string;
   summary: string;
