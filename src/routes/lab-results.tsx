@@ -187,7 +187,7 @@ function LabResultsPage() {
           </CardContent>
             </Card>
 
-            <AnalysisSummaryCard analyses={analyses} />
+            <AnalysisSummaryCard analyses={analyses} results={allResults} />
           </TabsContent>
 
           <TabsContent value="labs" className="space-y-4">
