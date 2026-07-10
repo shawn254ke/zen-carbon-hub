@@ -85,7 +85,11 @@ function useLabs() {
 function LabResultsPage() {
   const { can } = useAuth();
   const { analyses, save, remove } = useAnalyses();
+  const { results, addResult } = useLabResults();
   const canEditAnalysis = can("admin:all") || can("lab:upload");
+  const canUploadResult = can("admin:all") || can("lab:upload");
+  const allResults = useMemo(() => [...LAB_RESULTS, ...results], [results]);
+  const [uploadOpen, setUploadOpen] = useState(false);
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
