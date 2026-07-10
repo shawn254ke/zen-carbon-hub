@@ -799,23 +799,23 @@ function AnalysisDialog({
   );
 }
 
-function AnalysisSummaryCard({ analyses, results }: { analyses: Record<string, Analysis>; results: LabResult[] }) {
-  const entries = Object.entries(analyses);
+function AnalysisSummaryCard({ analyses, results, filteredIds }: { analyses: Record<string, Analysis>; results: LabResult[]; filteredIds?: Set<string> }) {
+  const entries = Object.entries(analyses).filter(([id]) => !filteredIds || filteredIds.has(id));
   const total = results.length;
-  const withAnalysis = entries.length;
+  const withAnalysis = Object.keys(analyses).length;
   return (
     <Card>
       <CardHeader>
         <CardTitle>Analysis summaries</CardTitle>
         <CardDescription>
-          {withAnalysis} of {total} results have an uploaded analysis.
+          {withAnalysis} of {total} results have an uploaded analysis{filteredIds ? ` · showing ${entries.length}` : ""}.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No analyses uploaded yet. Use “Add analysis” on any result to attach a file and a summary.</p>
+          <p className="text-sm text-muted-foreground">No analyses to show.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-3 max-h-[520px] overflow-auto pr-1">
             {entries.map(([id, a]) => {
               const l = results.find((x) => x.id === id);
               if (!l) return null;
