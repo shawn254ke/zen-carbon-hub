@@ -85,6 +85,7 @@ function useLabs() {
 function LabResultsPage() {
   const { can } = useAuth();
   const { analyses, save, remove } = useAnalyses();
+  const canEditAnalysis = can("admin:all") || can("lab:upload");
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
