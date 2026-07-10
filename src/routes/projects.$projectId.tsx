@@ -40,7 +40,6 @@ export const Route = createFileRoute("/projects/$projectId")({
   },
 });
 
-const ANALYSIS_KEY = "zc_lab_analyses_v1";
 
 function useAnalyses() {
   const [analyses, setAnalyses] = useState<Record<string, Analysis>>({});
