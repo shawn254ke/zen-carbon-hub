@@ -43,10 +43,13 @@ export const Route = createFileRoute("/projects/$projectId")({
 function ProjectDetail() {
   const project = Route.useLoaderData();
   const { can } = useAuth();
+  const { analyses } = useAnalyses();
   const batches = BATCHES.filter((b) => b.projectId === project.id);
   const labs = LAB_RESULTS.filter((l) => l.projectId === project.id);
   const evidence = EVIDENCE.filter((e) => e.projectId === project.id);
   const emissions = EMISSIONS.filter((e) => e.projectId === project.id);
+
+  const projectAnalyses = labs.filter((l) => analyses[l.id]);
 
   return (
     <AppShell title={project.name}>
