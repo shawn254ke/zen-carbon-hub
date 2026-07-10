@@ -113,12 +113,19 @@ function LabResultsPage() {
                   <Download className="h-4 w-4 mr-1" /> Download all analyses
                 </Button>
               )}
-              {LAB_RESULTS.length > 0 && (
-                <Button variant="outline" onClick={() => LAB_RESULTS.forEach(downloadLabResult)}>
+              {allResults.length > 0 && (
+                <Button variant="outline" onClick={() => allResults.forEach(downloadLabResult)}>
                   <Download className="h-4 w-4 mr-1" /> Download all reports
                 </Button>
               )}
-              {can("lab:upload") && <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>}
+              {canUploadResult && (
+                <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+                  <DialogTrigger asChild>
+                    <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>
+                  </DialogTrigger>
+                  <UploadLabResultDialog onSubmit={(r) => { addResult(r); setUploadOpen(false); }} />
+                </Dialog>
+              )}
             </div>
             <Card>
           <CardHeader>
