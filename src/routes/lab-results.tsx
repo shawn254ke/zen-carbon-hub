@@ -5,14 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download, FlaskConical, Paperclip } from "lucide-react";
-import { LAB_RESULTS, PROJECTS, type LabResult } from "@/lib/mock-data";
+import { LAB_RESULTS, PROJECTS, BATCHES, type LabResult } from "@/lib/mock-data";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 export const Route = createFileRoute("/lab-results")({
   component: LabResultsPage,
@@ -85,7 +85,11 @@ function useLabs() {
 function LabResultsPage() {
   const { can } = useAuth();
   const { analyses, save, remove } = useAnalyses();
+  const { results, addResult } = useLabResults();
   const canEditAnalysis = can("admin:all") || can("lab:upload");
+  const canUploadResult = can("admin:all") || can("lab:upload");
+  const allResults = useMemo(() => [...LAB_RESULTS, ...results], [results]);
+  const [uploadOpen, setUploadOpen] = useState(false);
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
@@ -109,17 +113,24 @@ function LabResultsPage() {
                   <Download className="h-4 w-4 mr-1" /> Download all analyses
                 </Button>
               )}
-              {LAB_RESULTS.length > 0 && (
-                <Button variant="outline" onClick={() => LAB_RESULTS.forEach(downloadLabResult)}>
+              {allResults.length > 0 && (
+                <Button variant="outline" onClick={() => allResults.forEach(downloadLabResult)}>
                   <Download className="h-4 w-4 mr-1" /> Download all reports
                 </Button>
               )}
-              {can("lab:upload") && <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>}
+              {canUploadResult && (
+                <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+                  <DialogTrigger asChild>
+                    <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>
+                  </DialogTrigger>
+                  <UploadLabResultDialog onSubmit={(r) => { addResult(r); setUploadOpen(false); }} />
+                </Dialog>
+              )}
             </div>
             <Card>
           <CardHeader>
             <CardTitle>All results</CardTitle>
-            <CardDescription>{LAB_RESULTS.length} total records</CardDescription>
+            <CardDescription>{allResults.length} total records</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -127,7 +138,7 @@ function LabResultsPage() {
                 <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead>Analysis</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {LAB_RESULTS.map((l) => {
+                {allResults.map((l) => {
                   const p = PROJECTS.find((x) => x.id === l.projectId);
                   const a = analyses[l.id];
                   return (
@@ -176,7 +187,7 @@ function LabResultsPage() {
           </CardContent>
             </Card>
 
-            <AnalysisSummaryCard analyses={analyses} />
+            <AnalysisSummaryCard analyses={analyses} results={allResults} />
           </TabsContent>
 
           <TabsContent value="labs" className="space-y-4">
@@ -494,6 +505,145 @@ function useAnalyses() {
   };
 }
 
+const UPLOADED_RESULTS_KEY = "zc_uploaded_lab_results_v1";
+
+function useLabResults() {
+  const [results, setResults] = useState<LabResult[]>([]);
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(UPLOADED_RESULTS_KEY) : null;
+    if (raw) {
+      try { setResults(JSON.parse(raw)); } catch { /* ignore */ }
+    }
+  }, []);
+  const persist = (next: LabResult[]) => {
+    setResults(next);
+    window.localStorage.setItem(UPLOADED_RESULTS_KEY, JSON.stringify(next));
+  };
+  return {
+    results,
+    addResult: (r: LabResult) => persist([r, ...results]),
+  };
+}
+
+function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void }) {
+  const { user } = useAuth();
+  const [testName, setTestName] = useState("");
+  const [projectId, setProjectId] = useState(PROJECTS[0]?.id ?? "");
+  const [batchId, setBatchId] = useState("");
+  const [labName, setLabName] = useState("");
+  const [sampleDate, setSampleDate] = useState("");
+  const [reportDate, setReportDate] = useState("");
+  const [result, setResult] = useState("");
+  const [status, setStatus] = useState<LabResult["status"]>("reported");
+  const [fileName, setFileName] = useState("");
+
+  const selectedProject = PROJECTS.find((p) => p.id === projectId);
+  const batches = selectedProject ? BATCHES.filter((b) => b.projectId === projectId) : [];
+
+  const valid = testName.trim() && labName.trim() && sampleDate.trim() && result.trim() && fileName.trim();
+
+  return (
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Upload lab result</DialogTitle>
+        <DialogDescription>Record a new lab result and attach the report file.</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-3">
+        <div className="grid gap-1.5">
+          <Label htmlFor="lr-test">Test name</Label>
+          <Input id="lr-test" value={testName} onChange={(e) => setTestName(e.target.value)} placeholder="e.g. Fixed carbon %" />
+        </div>
+        <div className="grid gap-1.5 grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-project">Project</Label>
+            <select
+              id="lr-project"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+              value={projectId}
+              onChange={(e) => { setProjectId(e.target.value); setBatchId(""); }}
+            >
+              {PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-batch">Batch (optional)</Label>
+            <select
+              id="lr-batch"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+              value={batchId}
+              onChange={(e) => setBatchId(e.target.value)}
+            >
+              <option value="">—</option>
+              {batches.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="lr-lab">Laboratory</Label>
+          <Input id="lr-lab" value={labName} onChange={(e) => setLabName(e.target.value)} placeholder="e.g. SGS Nairobi" />
+        </div>
+        <div className="grid gap-1.5 grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-sampled">Sample date</Label>
+            <Input id="lr-sampled" type="date" value={sampleDate} onChange={(e) => setSampleDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-reported">Report date</Label>
+            <Input id="lr-reported" type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="lr-result">Result</Label>
+          <Input id="lr-result" value={result} onChange={(e) => setResult(e.target.value)} placeholder="e.g. 72.4%" />
+        </div>
+        <div className="grid gap-1.5 grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-status">Status</Label>
+            <select
+              id="lr-status"
+              className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as LabResult["status"])}
+            >
+              <option value="reported">Reported</option>
+              <option value="in_progress">In progress</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="lr-file">Report file</Label>
+            <Input
+              id="lr-file"
+              type="file"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) setFileName(f.name); }}
+            />
+          </div>
+        </div>
+        {fileName && <p className="text-xs text-muted-foreground">Selected report: {fileName}</p>}
+      </div>
+      <DialogFooter>
+        <Button
+          disabled={!valid}
+          onClick={() => {
+            onSubmit({
+              id: `lr_${Date.now()}`,
+              projectId,
+              batchId: batchId || undefined,
+              testName: testName.trim(),
+              labName: labName.trim(),
+              sampleDate,
+              reportDate,
+              result: result.trim(),
+              status,
+            });
+          }}
+        >
+          <Upload className="h-4 w-4 mr-1" /> Save result
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
 function AnalysisDialog({
   result, existing, onSave, onRemove, canEdit,
 }: {
@@ -588,9 +738,9 @@ function AnalysisDialog({
   );
 }
 
-function AnalysisSummaryCard({ analyses }: { analyses: Record<string, Analysis> }) {
+function AnalysisSummaryCard({ analyses, results }: { analyses: Record<string, Analysis>; results: LabResult[] }) {
   const entries = Object.entries(analyses);
-  const total = LAB_RESULTS.length;
+  const total = results.length;
   const withAnalysis = entries.length;
   return (
     <Card>
@@ -606,7 +756,7 @@ function AnalysisSummaryCard({ analyses }: { analyses: Record<string, Analysis> 
         ) : (
           <ul className="space-y-3">
             {entries.map(([id, a]) => {
-              const l = LAB_RESULTS.find((x) => x.id === id);
+              const l = results.find((x) => x.id === id);
               if (!l) return null;
               const p = PROJECTS.find((x) => x.id === l.projectId);
               return (
