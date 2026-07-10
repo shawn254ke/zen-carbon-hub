@@ -738,9 +738,9 @@ function AnalysisDialog({
   );
 }
 
-function AnalysisSummaryCard({ analyses }: { analyses: Record<string, Analysis> }) {
+function AnalysisSummaryCard({ analyses, results }: { analyses: Record<string, Analysis>; results: LabResult[] }) {
   const entries = Object.entries(analyses);
-  const total = LAB_RESULTS.length;
+  const total = results.length;
   const withAnalysis = entries.length;
   return (
     <Card>
@@ -756,7 +756,7 @@ function AnalysisSummaryCard({ analyses }: { analyses: Record<string, Analysis> 
         ) : (
           <ul className="space-y-3">
             {entries.map(([id, a]) => {
-              const l = LAB_RESULTS.find((x) => x.id === id);
+              const l = results.find((x) => x.id === id);
               if (!l) return null;
               const p = PROJECTS.find((x) => x.id === l.projectId);
               return (
