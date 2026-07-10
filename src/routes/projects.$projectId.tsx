@@ -40,6 +40,19 @@ export const Route = createFileRoute("/projects/$projectId")({
   },
 });
 
+const ANALYSIS_KEY = "zc_lab_analyses_v1";
+
+function useAnalyses() {
+  const [analyses, setAnalyses] = useState<Record<string, Analysis>>({});
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(ANALYSIS_KEY) : null;
+    if (raw) {
+      try { setAnalyses(JSON.parse(raw)); } catch { /* ignore */ }
+    }
+  }, []);
+  return { analyses };
+}
+
 function ProjectDetail() {
   const project = Route.useLoaderData();
   const { can } = useAuth();
