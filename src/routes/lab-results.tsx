@@ -614,7 +614,12 @@ function AnalysisSummaryCard({ analyses }: { analyses: Record<string, Analysis> 
                         <Paperclip className="h-3 w-3" /> {a.fileName} · by {a.author} · {a.uploadedOn}
                       </div>
                     </div>
-                    <Badge variant="outline">{l.result}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
+                        <Download className="h-3.5 w-3.5 mr-1" /> Analysis
+                      </Button>
+                      <Badge variant="outline">{l.result}</Badge>
+                    </div>
                   </div>
                   <p className="text-sm mt-2">{a.summary}</p>
                   {a.keyFindings && (
