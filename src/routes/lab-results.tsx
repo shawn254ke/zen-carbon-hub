@@ -155,7 +155,9 @@ function LabResultsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <AnalysisDialog result={l} existing={a} onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
+                          {canEditAnalysis && (
+                            <AnalysisDialog result={l} existing={a} canEdit onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
+                          )}
                           {a && (
                             <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
                               <Download className="h-4 w-4 mr-1" /> Analysis
