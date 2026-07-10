@@ -90,6 +90,26 @@ function LabResultsPage() {
   const canUploadResult = can("admin:all") || can("lab:upload");
   const allResults = useMemo(() => [...LAB_RESULTS, ...results], [results]);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filteredResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return allResults.filter((l) => {
+      if (projectFilter !== "all" && l.projectId !== projectFilter) return false;
+      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+      if (!q) return true;
+      const p = PROJECTS.find((x) => x.id === l.projectId);
+      const a = analyses[l.id];
+      const hay = [
+        l.testName, l.labName, l.result, l.batchId ?? "", l.sampleDate, l.reportDate ?? "",
+        p?.code ?? "", p?.name ?? "",
+        a?.fileName ?? "", a?.summary ?? "", a?.keyFindings ?? "", a?.recommendation ?? "", a?.author ?? "",
+      ].join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }, [allResults, analyses, query, projectFilter, statusFilter]);
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
@@ -130,15 +150,55 @@ function LabResultsPage() {
             <Card>
           <CardHeader>
             <CardTitle>All results</CardTitle>
-            <CardDescription>{allResults.length} total records</CardDescription>
+            <CardDescription>
+              Showing {filteredResults.length} of {allResults.length} records
+            </CardDescription>
+            <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:items-center">
+              <Input
+                placeholder="Search test, lab, result, project, analysis…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="sm:max-w-xs"
+              />
+              <select
+                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+              >
+                <option value="all">All projects</option>
+                {PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All statuses</option>
+                <option value="reported">Reported</option>
+                <option value="in_progress">In progress</option>
+              </select>
+              {(query || projectFilter !== "all" || statusFilter !== "all") && (
+                <Button variant="ghost" size="sm" onClick={() => { setQuery(""); setProjectFilter("all"); setStatusFilter("all"); }}>
+                  Clear
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
+            <div className="max-h-[520px] overflow-auto rounded-md border">
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Project</TableHead><TableHead>Batch</TableHead><TableHead>Test</TableHead><TableHead>Lab</TableHead><TableHead>Sample date</TableHead><TableHead>Result</TableHead><TableHead>Status</TableHead><TableHead>Analysis</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {allResults.map((l) => {
+                {filteredResults.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">
+                      No results match your search.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {filteredResults.map((l) => {
                   const p = PROJECTS.find((x) => x.id === l.projectId);
                   const a = analyses[l.id];
                   return (
@@ -184,10 +244,11 @@ function LabResultsPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
             </Card>
 
-            <AnalysisSummaryCard analyses={analyses} results={allResults} />
+            <AnalysisSummaryCard analyses={analyses} results={allResults} filteredIds={new Set(filteredResults.map((r) => r.id))} />
           </TabsContent>
 
           <TabsContent value="labs" className="space-y-4">
