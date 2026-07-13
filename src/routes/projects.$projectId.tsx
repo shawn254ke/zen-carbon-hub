@@ -448,8 +448,6 @@ function AddBatchDialog({
   const [biochar, setBiochar] = useState("");
   const [cement, setCement] = useState("");
   const [water, setWater] = useState("");
-  const [pathway, setPathway] = useState<"liquid_co2" | "other">("liquid_co2");
-  const [co2, setCo2] = useState("");
   const [admixture, setAdmixture] = useState("");
 
   const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
@@ -469,8 +467,6 @@ function AddBatchDialog({
       biocharKg: num(biochar),
       cementKg: Number(cement),
       waterKg: Number(water),
-      pathway,
-      co2Kg: pathway === "liquid_co2" ? num(co2) : undefined,
       admixtureKg: num(admixture),
       createdBy,
       status: "complete",
@@ -491,19 +487,6 @@ function AddBatchDialog({
         <Field label="Biochar (kg, optional)" type="number" value={biochar} onChange={setBiochar} />
         <Field label="Cement (kg)" type="number" value={cement} onChange={setCement} />
         <Field label="Water (kg)" type="number" value={water} onChange={setWater} />
-        <div className="space-y-1.5">
-          <Label>Pathway</Label>
-          <Select value={pathway} onValueChange={(v) => setPathway(v as "liquid_co2" | "other")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="liquid_co2">Liquid CO₂ injection</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {pathway === "liquid_co2" && (
-          <Field label="CO₂ injected (kg)" type="number" value={co2} onChange={setCo2} />
-        )}
         <Field label="Admixture (kg, optional)" type="number" value={admixture} onChange={setAdmixture} />
       </div>
       <DialogFooter>
