@@ -192,7 +192,12 @@ function ProjectDetail() {
                       <TableRow>
                         <TableHead>Batch</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Total mass (kg)</TableHead>
+                        <TableHead className="text-right">Fines (kg)</TableHead>
+                        <TableHead className="text-right">Coarse (kg)</TableHead>
+                        <TableHead className="text-right">Biochar (kg)</TableHead>
+                        <TableHead className="text-right">Cement (kg)</TableHead>
+                        <TableHead className="text-right">Water (kg)</TableHead>
+                        <TableHead className="text-right">Admixture (kg)</TableHead>
                         <TableHead>Created by</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -202,13 +207,18 @@ function ProjectDetail() {
                         <TableRow key={b.id}>
                           <TableCell className="font-medium">{b.code}</TableCell>
                           <TableCell>{b.runDate}</TableCell>
-                          <TableCell>{b.massKg}</TableCell>
+                          <TableCell className="text-right">{b.finesKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.coarseKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.biocharKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.cementKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.waterKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.admixtureKg ?? "—"}</TableCell>
                           <TableCell>{b.createdBy}</TableCell>
                           <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
                         </TableRow>
                       ))}
                       {allBatches.length === 0 && (
-                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
