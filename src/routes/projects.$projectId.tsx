@@ -8,7 +8,31 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+
+type ExtraBatch = {
+  id: string;
+  projectId: string;
+  code: string;
+  runDate: string;
+  finesKg: number;
+  coarseKg: number;
+  biocharKg?: number;
+  cementKg: number;
+  waterKg: number;
+  pathway: "liquid_co2" | "other";
+  co2Kg?: number;
+  admixtureKg?: number;
+  createdBy: string;
+  status: "complete" | "in_progress" | "failed";
+};
+
+const EXTRA_BATCH_KEY = "zc_extra_batches_v1";
 
 type Analysis = {
   fileName: string;
@@ -54,9 +78,31 @@ function useAnalyses() {
 
 function ProjectDetail() {
   const project = Route.useLoaderData();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const { analyses } = useAnalyses();
-  const batches = BATCHES.filter((b) => b.projectId === project.id);
+  const [extraBatches, setExtraBatches] = useState<ExtraBatch[]>([]);
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(EXTRA_BATCH_KEY) : null;
+    if (raw) { try { setExtraBatches(JSON.parse(raw)); } catch { /* ignore */ } }
+  }, []);
+  const persistExtra = (next: ExtraBatch[]) => {
+    setExtraBatches(next);
+    window.localStorage.setItem(EXTRA_BATCH_KEY, JSON.stringify(next));
+  };
+  const mockBatches = BATCHES.filter((b) => b.projectId === project.id);
+  const projectExtras = extraBatches.filter((b) => b.projectId === project.id);
+  const allBatches = useMemo(() => [
+    ...projectExtras.map((b) => ({
+      id: b.id, code: b.code, runDate: b.runDate,
+      massKg: b.finesKg + b.coarseKg + (b.biocharKg ?? 0) + b.cementKg,
+      status: b.status, createdBy: b.createdBy, extra: b as ExtraBatch | undefined,
+    })),
+    ...mockBatches.map((b) => ({
+      id: b.id, code: b.code, runDate: b.runDate,
+      massKg: b.massKg, status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
+    })),
+  ], [projectExtras, mockBatches]);
+  const [addOpen, setAddOpen] = useState(false);
   const labs = LAB_RESULTS.filter((l) => l.projectId === project.id);
   const evidence = EVIDENCE.filter((e) => e.projectId === project.id);
   const emissions = EMISSIONS.filter((e) => e.projectId === project.id);
@@ -124,7 +170,20 @@ function ProjectDetail() {
                     <CardDescription>Every batch supports lab result and supporting document uploads.</CardDescription>
                   </div>
                   {can("projects:edit") && (
-                    <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add batch</Button>
+                    <Dialog open={addOpen} onOpenChange={setAddOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add batch</Button>
+                      </DialogTrigger>
+                      <AddBatchDialog
+                        projectId={project.id}
+                        createdBy={user.name}
+                        onAdd={(b) => {
+                          persistExtra([b, ...extraBatches]);
+                          setAddOpen(false);
+                          toast.success(`Batch ${b.code} added`);
+                        }}
+                      />
+                    </Dialog>
                   )}
                 </CardHeader>
                 <CardContent>
@@ -133,31 +192,23 @@ function ProjectDetail() {
                       <TableRow>
                         <TableHead>Batch</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Feedstock</TableHead>
-                        <TableHead>Mass (kg)</TableHead>
-                        <TableHead>Yield (kg)</TableHead>
-                        <TableHead>Temp (°C)</TableHead>
+                        <TableHead>Total mass (kg)</TableHead>
+                        <TableHead>Created by</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Attachments</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {batches.map((b) => (
+                      {allBatches.map((b) => (
                         <TableRow key={b.id}>
                           <TableCell className="font-medium">{b.code}</TableCell>
                           <TableCell>{b.runDate}</TableCell>
-                          <TableCell>{b.feedstock}</TableCell>
                           <TableCell>{b.massKg}</TableCell>
-                          <TableCell>{b.yieldKg}</TableCell>
-                          <TableCell>{b.temperatureC}</TableCell>
+                          <TableCell>{b.createdBy}</TableCell>
                           <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant="outline">Upload lab / photos</Button>
-                          </TableCell>
                         </TableRow>
                       ))}
-                      {batches.length === 0 && (
-                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
+                      {allBatches.length === 0 && (
+                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
@@ -369,6 +420,100 @@ function downloadEvidence(it: EvidenceItem) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function AddBatchDialog({
+  projectId,
+  createdBy,
+  onAdd,
+}: {
+  projectId: string;
+  createdBy: string;
+  onAdd: (b: ExtraBatch) => void;
+}) {
+  const [code, setCode] = useState("");
+  const [runDate, setRunDate] = useState(new Date().toISOString().slice(0, 10));
+  const [fines, setFines] = useState("");
+  const [coarse, setCoarse] = useState("");
+  const [biochar, setBiochar] = useState("");
+  const [cement, setCement] = useState("");
+  const [water, setWater] = useState("");
+  const [pathway, setPathway] = useState<"liquid_co2" | "other">("liquid_co2");
+  const [co2, setCo2] = useState("");
+  const [admixture, setAdmixture] = useState("");
+
+  const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
+
+  const submit = () => {
+    if (!code.trim() || !fines || !coarse || !cement || !water) {
+      toast.error("Fill batch code, fines, coarse, cement and water");
+      return;
+    }
+    onAdd({
+      id: `bx_${Date.now()}`,
+      projectId,
+      code: code.trim(),
+      runDate,
+      finesKg: Number(fines),
+      coarseKg: Number(coarse),
+      biocharKg: num(biochar),
+      cementKg: Number(cement),
+      waterKg: Number(water),
+      pathway,
+      co2Kg: pathway === "liquid_co2" ? num(co2) : undefined,
+      admixtureKg: num(admixture),
+      createdBy,
+      status: "complete",
+    });
+  };
+
+  return (
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Add batch</DialogTitle>
+        <DialogDescription>Record mix design and process parameters for a new batch.</DialogDescription>
+      </DialogHeader>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Batch code" value={code} onChange={setCode} placeholder="B-014-025" />
+        <Field label="Run date" type="date" value={runDate} onChange={setRunDate} />
+        <Field label="Fines (kg)" type="number" value={fines} onChange={setFines} />
+        <Field label="Coarse (kg)" type="number" value={coarse} onChange={setCoarse} />
+        <Field label="Biochar (kg, optional)" type="number" value={biochar} onChange={setBiochar} />
+        <Field label="Cement (kg)" type="number" value={cement} onChange={setCement} />
+        <Field label="Water (kg)" type="number" value={water} onChange={setWater} />
+        <div className="space-y-1.5">
+          <Label>Pathway</Label>
+          <Select value={pathway} onValueChange={(v) => setPathway(v as "liquid_co2" | "other")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="liquid_co2">Liquid CO₂ injection</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {pathway === "liquid_co2" && (
+          <Field label="CO₂ injected (kg)" type="number" value={co2} onChange={setCo2} />
+        )}
+        <Field label="Admixture (kg, optional)" type="number" value={admixture} onChange={setAdmixture} />
+      </div>
+      <DialogFooter>
+        <Button onClick={submit}>Add batch</Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+function Field({
+  label, value, onChange, type = "text", placeholder,
+}: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
 }
 
 function downloadLabResult(it: LabResult) {
