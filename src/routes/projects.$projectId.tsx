@@ -12,7 +12,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 type ExtraBatch = {
@@ -25,8 +24,6 @@ type ExtraBatch = {
   biocharKg?: number;
   cementKg: number;
   waterKg: number;
-  pathway: "liquid_co2" | "other";
-  co2Kg?: number;
   admixtureKg?: number;
   createdBy: string;
   status: "complete" | "in_progress" | "failed";
@@ -94,12 +91,15 @@ function ProjectDetail() {
   const allBatches = useMemo(() => [
     ...projectExtras.map((b) => ({
       id: b.id, code: b.code, runDate: b.runDate,
-      massKg: b.finesKg + b.coarseKg + (b.biocharKg ?? 0) + b.cementKg,
+      finesKg: b.finesKg, coarseKg: b.coarseKg, biocharKg: b.biocharKg,
+      cementKg: b.cementKg, waterKg: b.waterKg, admixtureKg: b.admixtureKg,
       status: b.status, createdBy: b.createdBy, extra: b as ExtraBatch | undefined,
     })),
     ...mockBatches.map((b) => ({
       id: b.id, code: b.code, runDate: b.runDate,
-      massKg: b.massKg, status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
+      finesKg: undefined, coarseKg: undefined, biocharKg: undefined,
+      cementKg: undefined, waterKg: undefined, admixtureKg: undefined,
+      status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
     })),
   ], [projectExtras, mockBatches]);
   const [addOpen, setAddOpen] = useState(false);
@@ -192,7 +192,12 @@ function ProjectDetail() {
                       <TableRow>
                         <TableHead>Batch</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Total mass (kg)</TableHead>
+                        <TableHead className="text-right">Fines (kg)</TableHead>
+                        <TableHead className="text-right">Coarse (kg)</TableHead>
+                        <TableHead className="text-right">Biochar (kg)</TableHead>
+                        <TableHead className="text-right">Cement (kg)</TableHead>
+                        <TableHead className="text-right">Water (kg)</TableHead>
+                        <TableHead className="text-right">Admixture (kg)</TableHead>
                         <TableHead>Created by</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
@@ -202,13 +207,18 @@ function ProjectDetail() {
                         <TableRow key={b.id}>
                           <TableCell className="font-medium">{b.code}</TableCell>
                           <TableCell>{b.runDate}</TableCell>
-                          <TableCell>{b.massKg}</TableCell>
+                          <TableCell className="text-right">{b.finesKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.coarseKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.biocharKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.cementKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.waterKg ?? "—"}</TableCell>
+                          <TableCell className="text-right">{b.admixtureKg ?? "—"}</TableCell>
                           <TableCell>{b.createdBy}</TableCell>
                           <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
                         </TableRow>
                       ))}
                       {allBatches.length === 0 && (
-                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
@@ -438,8 +448,6 @@ function AddBatchDialog({
   const [biochar, setBiochar] = useState("");
   const [cement, setCement] = useState("");
   const [water, setWater] = useState("");
-  const [pathway, setPathway] = useState<"liquid_co2" | "other">("liquid_co2");
-  const [co2, setCo2] = useState("");
   const [admixture, setAdmixture] = useState("");
 
   const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
@@ -459,8 +467,6 @@ function AddBatchDialog({
       biocharKg: num(biochar),
       cementKg: Number(cement),
       waterKg: Number(water),
-      pathway,
-      co2Kg: pathway === "liquid_co2" ? num(co2) : undefined,
       admixtureKg: num(admixture),
       createdBy,
       status: "complete",
@@ -481,19 +487,6 @@ function AddBatchDialog({
         <Field label="Biochar (kg, optional)" type="number" value={biochar} onChange={setBiochar} />
         <Field label="Cement (kg)" type="number" value={cement} onChange={setCement} />
         <Field label="Water (kg)" type="number" value={water} onChange={setWater} />
-        <div className="space-y-1.5">
-          <Label>Pathway</Label>
-          <Select value={pathway} onValueChange={(v) => setPathway(v as "liquid_co2" | "other")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="liquid_co2">Liquid CO₂ injection</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {pathway === "liquid_co2" && (
-          <Field label="CO₂ injected (kg)" type="number" value={co2} onChange={setCo2} />
-        )}
         <Field label="Admixture (kg, optional)" type="number" value={admixture} onChange={setAdmixture} />
       </div>
       <DialogFooter>
