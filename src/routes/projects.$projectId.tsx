@@ -271,6 +271,7 @@ function ProjectDetail() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-8"></TableHead>
                         <TableHead>Batch</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead className="text-right">Fines (kg)</TableHead>
@@ -284,27 +285,67 @@ function ProjectDetail() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {allBatches.map((b) => (
-                        <TableRow key={b.id}>
-                          <TableCell className="font-medium">{b.code}</TableCell>
-                          <TableCell>{b.runDate}</TableCell>
-                          <TableCell className="text-right">{b.finesKg ?? "—"}</TableCell>
-                          <TableCell className="text-right">{b.coarseKg ?? "—"}</TableCell>
-                          <TableCell className="text-right">{b.biocharKg ?? "—"}</TableCell>
-                          <TableCell className="text-right">{b.cementKg ?? "—"}</TableCell>
-                          <TableCell className="text-right">{b.waterKg ?? "—"}</TableCell>
-                          <TableCell className="text-right">{b.admixtureKg ?? "—"}</TableCell>
-                          <TableCell>{b.createdBy}</TableCell>
-                          <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
-                        </TableRow>
-                      ))}
+                      {allBatches.map((b) => {
+                        const isOpen = !!expanded[b.id];
+                        const entries = batchData[b.id] ?? [];
+                        return (
+                          <>
+                            <TableRow key={b.id}>
+                              <TableCell className="w-8 p-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setExpanded((s) => ({ ...s, [b.id]: !s[b.id] }))}
+                                  className="rounded p-0.5 hover:bg-muted"
+                                  aria-label={isOpen ? "Collapse" : "Expand"}
+                                >
+                                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </button>
+                              </TableCell>
+                              <TableCell className="font-medium">{b.code}</TableCell>
+                              <TableCell>{b.runDate}</TableCell>
+                              <TableCell className="text-right">{b.finesKg ?? "—"}</TableCell>
+                              <TableCell className="text-right">{b.coarseKg ?? "—"}</TableCell>
+                              <TableCell className="text-right">{b.biocharKg ?? "—"}</TableCell>
+                              <TableCell className="text-right">{b.cementKg ?? "—"}</TableCell>
+                              <TableCell className="text-right">{b.waterKg ?? "—"}</TableCell>
+                              <TableCell className="text-right">{b.admixtureKg ?? "—"}</TableCell>
+                              <TableCell>{b.createdBy}</TableCell>
+                              <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
+                            </TableRow>
+                            {isOpen && (
+                              <TableRow key={`${b.id}-detail`} className="bg-muted/30 hover:bg-muted/30">
+                                <TableCell colSpan={11} className="p-4">
+                                  <BatchDataPanel
+                                    pathway={pathway}
+                                    entries={entries}
+                                    canEdit={can("projects:edit")}
+                                    onAdd={() => setEntryDialogBatch(b.id)}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        );
+                      })}
                       {allBatches.length === 0 && (
-                        <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
                 </CardContent>
               </Card>
+              <Dialog open={entryDialogBatch !== null} onOpenChange={(o) => !o && setEntryDialogBatch(null)}>
+                {entryDialogBatch && (
+                  <AddBatchDataDialog
+                    pathway={pathway}
+                    onAdd={(entry) => {
+                      addBatchEntry(entryDialogBatch, entry);
+                      setEntryDialogBatch(null);
+                      toast.success("Batch data entry added");
+                    }}
+                  />
+                )}
+              </Dialog>
             </TabsContent>
           )}
 
