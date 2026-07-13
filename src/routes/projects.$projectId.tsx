@@ -10,8 +10,10 @@ import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 
 type ExtraBatch = {
@@ -30,6 +32,29 @@ type ExtraBatch = {
 };
 
 const EXTRA_BATCH_KEY = "zc_extra_batches_v1";
+
+type Pathway = "liquid_co2" | "carbonated_water";
+const PROJECT_SETTINGS_KEY = "zc_project_settings_v1";
+
+type LiquidCo2Entry = { id: string; co2InjectedG: number; timestamp: string };
+type CarbonatedWaterEntry = {
+  id: string;
+  waterUsed: number;
+  initialPh: number;
+  finalPh: number;
+  initialDissolvedCo2: number;
+  finalDissolvedCo2: number;
+  initialTemp: number;
+  finalTemp: number;
+  initialPressure: number;
+  finalPressure: number;
+  initialFlowRate: number;
+  finalFlowRate: number;
+  energyUsed: number;
+  timestamp: string;
+};
+type BatchDataEntry = LiquidCo2Entry | CarbonatedWaterEntry;
+const BATCH_DATA_KEY = "zc_batch_data_v1";
 
 type Analysis = {
   fileName: string;
