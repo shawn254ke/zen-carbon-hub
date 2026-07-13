@@ -91,12 +91,15 @@ function ProjectDetail() {
   const allBatches = useMemo(() => [
     ...projectExtras.map((b) => ({
       id: b.id, code: b.code, runDate: b.runDate,
-      massKg: b.finesKg + b.coarseKg + (b.biocharKg ?? 0) + b.cementKg,
+      finesKg: b.finesKg, coarseKg: b.coarseKg, biocharKg: b.biocharKg,
+      cementKg: b.cementKg, waterKg: b.waterKg, admixtureKg: b.admixtureKg,
       status: b.status, createdBy: b.createdBy, extra: b as ExtraBatch | undefined,
     })),
     ...mockBatches.map((b) => ({
       id: b.id, code: b.code, runDate: b.runDate,
-      massKg: b.massKg, status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
+      finesKg: undefined, coarseKg: undefined, biocharKg: undefined,
+      cementKg: undefined, waterKg: undefined, admixtureKg: undefined,
+      status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
     })),
   ], [projectExtras, mockBatches]);
   const [addOpen, setAddOpen] = useState(false);
