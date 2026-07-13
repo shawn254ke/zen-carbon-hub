@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ShieldCheck, UserPlus, UserX, UserCheck } from "lucide-react";
+import { ShieldCheck, UserPlus, UserX, UserCheck, Trash2 } from "lucide-react";
 import { useAuth, ROLE_LABELS, type Role } from "@/lib/auth";
 import { toast } from "sonner";
 
@@ -135,6 +135,11 @@ function UserManagementCard() {
     toast.success("User invited");
   };
 
+  const deleteUser = (id: string) => {
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    toast.success("User deleted");
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -181,7 +186,8 @@ function UserManagementCard() {
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  {u.active ? (
+                  <div className="flex justify-end gap-2">
+                    {u.active ? (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button size="sm" variant="outline" className="text-destructive">
@@ -208,6 +214,28 @@ function UserManagementCard() {
                       <UserCheck className="h-4 w-4 mr-1" /> Reactivate
                     </Button>
                   )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="text-destructive border-destructive/50 hover:bg-destructive/10 hover:text-destructive">
+                          <Trash2 className="h-4 w-4 mr-1" /> Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {u.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This permanently removes the user and their access. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteUser(u.id)}>
+                            Delete user
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
