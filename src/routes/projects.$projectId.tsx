@@ -102,6 +102,8 @@ function ProjectDetail() {
       massKg: b.massKg, status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
     })),
   ], [projectExtras, mockBatches]);
+  type Row = (typeof projectExtras extends Array<infer _T> ? never : never);
+  void ({} as Row);
   const [addOpen, setAddOpen] = useState(false);
   const labs = LAB_RESULTS.filter((l) => l.projectId === project.id);
   const evidence = EVIDENCE.filter((e) => e.projectId === project.id);
