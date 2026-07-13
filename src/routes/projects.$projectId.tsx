@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -289,8 +289,8 @@ function ProjectDetail() {
                         const isOpen = !!expanded[b.id];
                         const entries = batchData[b.id] ?? [];
                         return (
-                          <>
-                            <TableRow key={b.id}>
+                          <Fragment key={b.id}>
+                            <TableRow>
                               <TableCell className="w-8 p-2">
                                 <button
                                   type="button"
@@ -313,7 +313,7 @@ function ProjectDetail() {
                               <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
                             </TableRow>
                             {isOpen && (
-                              <TableRow key={`${b.id}-detail`} className="bg-muted/30 hover:bg-muted/30">
+                              <TableRow className="bg-muted/30 hover:bg-muted/30">
                                 <TableCell colSpan={11} className="p-4">
                                   <BatchDataPanel
                                     pathway={pathway}
@@ -324,7 +324,7 @@ function ProjectDetail() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </Fragment>
                         );
                       })}
                       {allBatches.length === 0 && (
