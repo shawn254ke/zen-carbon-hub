@@ -111,6 +111,46 @@ function ProjectDetail() {
     setExtraBatches(next);
     window.localStorage.setItem(EXTRA_BATCH_KEY, JSON.stringify(next));
   };
+
+  // Per-project pathway setting
+  const [pathway, setPathway] = useState<Pathway>("liquid_co2");
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(PROJECT_SETTINGS_KEY) : null;
+    if (raw) {
+      try {
+        const map = JSON.parse(raw) as Record<string, { pathway?: Pathway }>;
+        if (map[project.id]?.pathway) setPathway(map[project.id].pathway!);
+      } catch { /* ignore */ }
+    }
+  }, [project.id]);
+  const persistPathway = (p: Pathway) => {
+    setPathway(p);
+    const raw = window.localStorage.getItem(PROJECT_SETTINGS_KEY);
+    let map: Record<string, { pathway?: Pathway }> = {};
+    if (raw) { try { map = JSON.parse(raw); } catch { /* ignore */ } }
+    map[project.id] = { ...map[project.id], pathway: p };
+    window.localStorage.setItem(PROJECT_SETTINGS_KEY, JSON.stringify(map));
+  };
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Batch data entries keyed by batchId
+  const [batchData, setBatchData] = useState<Record<string, BatchDataEntry[]>>({});
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(BATCH_DATA_KEY) : null;
+    if (raw) { try { setBatchData(JSON.parse(raw)); } catch { /* ignore */ } }
+  }, []);
+  const persistBatchData = (next: Record<string, BatchDataEntry[]>) => {
+    setBatchData(next);
+    window.localStorage.setItem(BATCH_DATA_KEY, JSON.stringify(next));
+  };
+  const addBatchEntry = (batchId: string, entry: BatchDataEntry) => {
+    const next = { ...batchData, [batchId]: [...(batchData[batchId] ?? []), entry] };
+    persistBatchData(next);
+  };
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [entryDialogBatch, setEntryDialogBatch] = useState<string | null>(null);
+
   const mockBatches = BATCHES.filter((b) => b.projectId === project.id);
   const projectExtras = extraBatches.filter((b) => b.projectId === project.id);
   const allBatches = useMemo(() => [
@@ -147,6 +187,22 @@ function ProjectDetail() {
               {project.category === "industrial" ? "Industrial · " + (project.registry ?? "") : "Internal test"}
             </Badge>
             <Badge variant="outline">{project.status}</Badge>
+            {project.category === "internal" && (
+              <Badge variant="outline" className="ml-auto">
+                Pathway: {pathway === "liquid_co2" ? "Liquid CO₂" : "Carbonated water"}
+              </Badge>
+            )}
+            {project.category === "internal" && can("projects:edit") && (
+              <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline"><Settings2 className="h-4 w-4 mr-1" /> Settings</Button>
+                </DialogTrigger>
+                <ProjectSettingsDialog
+                  pathway={pathway}
+                  onSave={(p) => { persistPathway(p); setSettingsOpen(false); toast.success("Project settings saved"); }}
+                />
+              </Dialog>
+            )}
           </div>
           <div className="text-sm text-muted-foreground">
             {project.code} · {project.location} · started {project.startDate}
