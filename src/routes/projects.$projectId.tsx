@@ -25,8 +25,6 @@ type ExtraBatch = {
   biocharKg?: number;
   cementKg: number;
   waterKg: number;
-  pathway: "liquid_co2" | "other";
-  co2Kg?: number;
   admixtureKg?: number;
   createdBy: string;
   status: "complete" | "in_progress" | "failed";
