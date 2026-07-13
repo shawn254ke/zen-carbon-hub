@@ -422,6 +422,100 @@ function downloadEvidence(it: EvidenceItem) {
   URL.revokeObjectURL(url);
 }
 
+function AddBatchDialog({
+  projectId,
+  createdBy,
+  onAdd,
+}: {
+  projectId: string;
+  createdBy: string;
+  onAdd: (b: ExtraBatch) => void;
+}) {
+  const [code, setCode] = useState("");
+  const [runDate, setRunDate] = useState(new Date().toISOString().slice(0, 10));
+  const [fines, setFines] = useState("");
+  const [coarse, setCoarse] = useState("");
+  const [biochar, setBiochar] = useState("");
+  const [cement, setCement] = useState("");
+  const [water, setWater] = useState("");
+  const [pathway, setPathway] = useState<"liquid_co2" | "other">("liquid_co2");
+  const [co2, setCo2] = useState("");
+  const [admixture, setAdmixture] = useState("");
+
+  const num = (s: string) => (s.trim() === "" ? undefined : Number(s));
+
+  const submit = () => {
+    if (!code.trim() || !fines || !coarse || !cement || !water) {
+      toast.error("Fill batch code, fines, coarse, cement and water");
+      return;
+    }
+    onAdd({
+      id: `bx_${Date.now()}`,
+      projectId,
+      code: code.trim(),
+      runDate,
+      finesKg: Number(fines),
+      coarseKg: Number(coarse),
+      biocharKg: num(biochar),
+      cementKg: Number(cement),
+      waterKg: Number(water),
+      pathway,
+      co2Kg: pathway === "liquid_co2" ? num(co2) : undefined,
+      admixtureKg: num(admixture),
+      createdBy,
+      status: "complete",
+    });
+  };
+
+  return (
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Add batch</DialogTitle>
+        <DialogDescription>Record mix design and process parameters for a new batch.</DialogDescription>
+      </DialogHeader>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Batch code" value={code} onChange={setCode} placeholder="B-014-025" />
+        <Field label="Run date" type="date" value={runDate} onChange={setRunDate} />
+        <Field label="Fines (kg)" type="number" value={fines} onChange={setFines} />
+        <Field label="Coarse (kg)" type="number" value={coarse} onChange={setCoarse} />
+        <Field label="Biochar (kg, optional)" type="number" value={biochar} onChange={setBiochar} />
+        <Field label="Cement (kg)" type="number" value={cement} onChange={setCement} />
+        <Field label="Water (kg)" type="number" value={water} onChange={setWater} />
+        <div className="space-y-1.5">
+          <Label>Pathway</Label>
+          <Select value={pathway} onValueChange={(v) => setPathway(v as "liquid_co2" | "other")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="liquid_co2">Liquid CO₂ injection</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {pathway === "liquid_co2" && (
+          <Field label="CO₂ injected (kg)" type="number" value={co2} onChange={setCo2} />
+        )}
+        <Field label="Admixture (kg, optional)" type="number" value={admixture} onChange={setAdmixture} />
+      </div>
+      <DialogFooter>
+        <Button onClick={submit}>Add batch</Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+function Field({
+  label, value, onChange, type = "text", placeholder,
+}: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
 function downloadLabResult(it: LabResult) {
   const project = PROJECTS.find((p) => p.id === it.projectId);
   const content =
