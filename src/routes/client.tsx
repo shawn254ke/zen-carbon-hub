@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth";
-import { EMISSIONS, PROJECTS } from "@/lib/mock-data";
+import { useProjects } from "@/lib/projects-context";
 import { Factory, Leaf, DollarSign, TrendingDown, Truck, Flame, PackageCheck, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/client")({
@@ -63,14 +63,15 @@ const PROCESS_STEPS = [
 
 function ClientDashboard() {
   const { user } = useAuth();
+  const { projects, kpis } = useProjects();
 
-  const removalsTco2e = EMISSIONS.filter((e) => e.scope === "removals").reduce((a, b) => a + b.tco2e, 0);
+  const removalsTco2e = kpis.totalRemovalsTco2e;
   const clinkerReplacedTonnes = removalsTco2e / CLINKER_EMISSION_FACTOR_T_CO2_PER_T;
   const carbonRevenue = removalsTco2e * CARBON_CREDIT_PRICE_USD_PER_TCO2;
   const materialSavings = clinkerReplacedTonnes * CEMENT_MATERIAL_SAVING_USD_PER_T;
   const totalSavings = carbonRevenue + materialSavings;
 
-  const industrialProjects = PROJECTS.filter((p) => p.category === "industrial");
+  const industrialProjects = projects.filter((p) => p.category === "industrial");
 
   return (
     <AppShell title="Client Dashboard">
@@ -184,7 +185,7 @@ function ClientDashboard() {
                   <div className="text-xs text-muted-foreground">{p.code} · {p.location}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-medium">{p.emissionsAvoidedTco2e.toLocaleString()} tCO₂e</div>
+                  <div className="text-sm font-medium">{(p.emissionsAvoidedTco2e ?? 0).toLocaleString()} tCO₂e</div>
                   <Badge variant="secondary" className="mt-1 capitalize">{p.status}</Badge>
                 </div>
               </div>

@@ -1,25 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import logoAsset from "@/assets/Zen_logo_Without background.png";
 
-export const Route = createFileRoute("/login")({
-  component: LoginPage,
+export const Route = createFileRoute("/forgot-password")({
+  component: ForgotPasswordPage,
 });
 
-
-
-function LoginPage() {
+function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const { login, isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -29,19 +28,30 @@ function LoginPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !password) {
-      setError("Enter your email and password.");
+
+    if (!email.trim()) {
+      setError("Enter your email address.");
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
 
+    const normalizedEmail = email.trim();
+
     try {
-      const nextUser = await login({ email, password });
-      navigate({ to: nextUser.role === "client" ? "/client" : "/" });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to sign in right now.Contact support if the problem persists.");
+      const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+      const endpoint = base ? `${base}/auth/forgot-password` : "/auth/forgot-password";
+
+      await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
+      }).catch(() => null);
+
+      setSubmitted(true);
+    } catch {
+      setError("Unable to send reset instructions right now. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -55,31 +65,44 @@ function LoginPage() {
           <h1 className="mt-3 text-xl font-semibold tracking-tight text-white">My Zen Carbon</h1>
           <p className="text-xs text-muted-foreground">DMRV Platform</p>
         </div>
+
         <Card>
           <CardHeader>
-            <CardTitle>Sign in</CardTitle>
-            <CardDescription>Access your workspace to manage projects and evidence.</CardDescription>
+            <CardTitle>Forgot password</CardTitle>
+            <CardDescription>
+              Enter your email and we will send password reset instructions.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" />
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" />
-              </div>
-              
+
               {error && <p className="text-xs text-destructive">{error}</p>}
+
+              {submitted && (
+                <p className="text-xs text-emerald-600">
+                  If an account exists for that email, reset instructions have been sent.
+                </p>
+              )}
+
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Signing in..." : "Sign in"}
+                {isSubmitting ? "Sending..." : "Send reset link"}
               </Button>
+
               <Link
-                to="/forgot-password"
+                to="/login"
                 className="text-[11px] text-center text-muted-foreground block transition-colors hover:text-primary hover:underline"
               >
-                Forgot your password?
+                Back to sign in
               </Link>
             </form>
           </CardContent>

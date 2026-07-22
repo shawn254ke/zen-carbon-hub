@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2, Download } from "lucide-react";
-import { DEPARTMENTS, EVIDENCE, EMISSIONS, PROJECTS, type Department, type EvidenceItem } from "@/lib/mock-data";
+import { fetchEvidenceApi, type EvidenceItem } from "@/lib/evidence-api";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,14 +31,41 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { type Department, getDefaultDepartments } from "@/lib/evidence-config-api";
+import { useProjects } from "@/lib/projects-context";
+import { type Project } from "@/lib/projects-api";
+
+type ProjectRecord = Project;
 
 export const Route = createFileRoute("/verification")({
   component: VerificationReadinessPage,
 });
 
+function useVerificationEvidence() {
+  const [items, setItems] = useState<EvidenceItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadEvidence = async () => {
+    try {
+      const nextItems = await fetchEvidenceApi();
+      setItems(nextItems);
+      setError(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load evidence.");
+    }
+  };
+
+  useEffect(() => {
+    void loadEvidence();
+  }, []);
+
+  return { items, error, reload: loadEvidence };
+}
+
 function VerificationReadinessPage() {
   const { can, user } = useAuth();
   const allowed = can("verification:manage");
+  const { items: evidenceItems, error: evidenceError, reload: reloadEvidence } = useVerificationEvidence();
 
   if (!allowed) {
     return (
@@ -67,6 +94,7 @@ function VerificationReadinessPage() {
             Track document submission progress and CO₂ removals across all projects, and manage
             the departmental verification checklists.
           </p>
+          {evidenceError && <p className="text-sm text-destructive mt-2">{evidenceError}</p>}
         </div>
 
         <Tabs defaultValue="overview">
@@ -77,7 +105,7 @@ function VerificationReadinessPage() {
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
-            <ProjectOverview />
+            <ProjectOverview evidenceItems={evidenceItems} />
           </TabsContent>
 
           <TabsContent value="checklists" className="mt-4 space-y-4">
@@ -85,7 +113,7 @@ function VerificationReadinessPage() {
           </TabsContent>
 
           <TabsContent value="submit" className="mt-4 space-y-4">
-            <IsometricSubmission />
+            <IsometricSubmission evidenceItems={evidenceItems} onSubmitted={reloadEvidence} />
           </TabsContent>
         </Tabs>
       </div>
@@ -95,33 +123,35 @@ function VerificationReadinessPage() {
 
 /* ---------- Overview ---------- */
 
-function ProjectOverview() {
-  const { checklist } = useChecklist();
+function ProjectOverview({ evidenceItems }: { evidenceItems: EvidenceItem[] }) {
+  const { checklist, departments } = useChecklist();
+  const { projects } = useProjects();
+  const visibleDepartments = departments.length > 0 ? departments : getDefaultDepartments();
 
   const rows = useMemo(() => {
-    return PROJECTS.map((p) => {
-      const perDept = DEPARTMENTS.map((d) => {
-        const required = checklist[d.key];
+    return projects.map((p) => {
+      const perDept = visibleDepartments.map((department) => {
+        const required = checklist[department.key];
         const submitted = new Set(
-          EVIDENCE.filter((e) => e.projectId === p.id && e.department === d.key).map(
+          evidenceItems.filter((e) => e.projectId === p.id && e.department === department.key).map(
             (e) => e.documentType,
           ),
         );
         const done = required.filter((r) => submitted.has(r)).length;
-        return { dept: d.key, label: d.label, done, total: required.length };
+        return { dept: department.key, label: department.label, done, total: required.length };
       });
       const totalReq = perDept.reduce((s, x) => s + x.total, 0);
       const totalDone = perDept.reduce((s, x) => s + x.done, 0);
       const pct = totalReq === 0 ? 0 : Math.round((totalDone / totalReq) * 100);
-      const removals = EMISSIONS.filter(
-        (e) => e.projectId === p.id && e.scope === "removals",
-      ).reduce((s, e) => s + e.tco2e, 0);
-      const gross = EMISSIONS.filter(
-        (e) => e.projectId === p.id && e.scope !== "removals",
-      ).reduce((s, e) => s + e.tco2e, 0);
+      const removals = (p.emissions ?? [])
+        .filter((e) => e.scope === "removals")
+        .reduce((s, e) => s + e.tco2e, 0);
+      const gross = (p.emissions ?? [])
+        .filter((e) => e.scope !== "removals")
+        .reduce((s, e) => s + e.tco2e, 0);
       return { project: p, perDept, pct, totalDone, totalReq, removals, gross, net: removals - gross };
     });
-  }, [checklist]);
+  }, [checklist, evidenceItems, projects, visibleDepartments]);
 
   const portfolioRemovals = rows.reduce((s, r) => s + r.removals, 0);
   const portfolioNet = rows.reduce((s, r) => s + r.net, 0);
@@ -171,9 +201,9 @@ function ProjectOverview() {
                 <TableHead>Project</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="min-w-[200px]">Overall readiness</TableHead>
-                {DEPARTMENTS.map((d) => (
-                  <TableHead key={d.key} className="text-center whitespace-nowrap">
-                    {shortDeptLabel(d.key)}
+                {visibleDepartments.map((department) => (
+                  <TableHead key={department.key} className="text-center whitespace-nowrap">
+                    {shortDeptLabel(department.key)}
                   </TableHead>
                 ))}
                 <TableHead className="text-right whitespace-nowrap">Removals (tCO₂e)</TableHead>
@@ -283,11 +313,55 @@ function SummaryStat({
 /* ---------- Checklist editor ---------- */
 
 function ChecklistManager() {
+  const { departments } = useChecklist();
+  const { projects } = useProjects();
+  const visibleDepartments = departments.length > 0 ? departments : getDefaultDepartments();
+  const [projectId, setProjectId] = useState<string>(projects[0]?.id ?? "");
+
+  useEffect(() => {
+    if (projects.length > 0 && !projects.some((project) => project.id === projectId)) {
+      setProjectId(projects[0].id);
+    }
+  }, [projectId, projects]);
+
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {DEPARTMENTS.map((d) => (
-        <DeptChecklistEditor key={d.key} dept={d.key} label={d.label} description={d.description} />
-      ))}
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Checklist project scope</CardTitle>
+          <CardDescription>
+            Choose the project whose required checklist items you want to manage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-md">
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.code} - {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {visibleDepartments.map((department) => (
+          <DeptChecklistEditor
+            key={department.key}
+            dept={department.key}
+            label={department.label}
+            description={department.description}
+            projectId={projectId}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -296,13 +370,15 @@ function DeptChecklistEditor({
   dept,
   label,
   description,
+  projectId,
 }: {
   dept: Department;
   label: string;
   description: string;
+  projectId: string;
 }) {
-  const { checklist, addItem, removeItem, renameItem } = useChecklist();
-  const items = checklist[dept];
+  const { addItem, getChecklistForProject, removeItem, renameItem } = useChecklist();
+  const items = getChecklistForProject(projectId)[dept];
   const [newItem, setNewItem] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -334,8 +410,8 @@ function DeptChecklistEditor({
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7"
-                      onClick={() => {
-                        renameItem(dept, it, draft);
+                      onClick={async () => {
+                        await renameItem(dept, it, draft, projectId);
                         setEditing(null);
                       }}
                     >
@@ -368,7 +444,9 @@ function DeptChecklistEditor({
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-destructive"
-                      onClick={() => removeItem(dept, it)}
+                      onClick={() => {
+                        void removeItem(dept, it, projectId);
+                      }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -384,9 +462,9 @@ function DeptChecklistEditor({
 
         <form
           className="flex gap-2 pt-2"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            addItem(dept, newItem);
+            await addItem(dept, newItem, projectId);
             setNewItem("");
           }}
         >
@@ -415,11 +493,19 @@ type SubmissionRecord = {
 
 const SUBMISSIONS: Record<string, SubmissionRecord> = {};
 
-function IsometricSubmission() {
-  const { checklist } = useChecklist();
+function IsometricSubmission({
+  evidenceItems,
+  onSubmitted,
+}: {
+  evidenceItems: EvidenceItem[];
+  onSubmitted: () => Promise<void> | void;
+}) {
+  const { checklist, departments } = useChecklist();
+  const { projects } = useProjects();
+  const visibleDepartments = departments.length > 0 ? departments : getDefaultDepartments();
   const isometricProjects = useMemo(
-    () => PROJECTS.filter((p) => p.category === "industrial"),
-    [],
+    () => projects.filter((p) => p.category === "industrial"),
+    [projects],
   );
   const [projectId, setProjectId] = useState<string>(isometricProjects[0]?.id ?? "");
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -430,16 +516,16 @@ function IsometricSubmission() {
   const lastSubmission = SUBMISSIONS[projectId];
 
   const groups = useMemo(() => {
-    return DEPARTMENTS.map((d) => {
-      const required = checklist[d.key];
-      const items = EVIDENCE.filter(
-        (e) => e.projectId === projectId && e.department === d.key,
+    return visibleDepartments.map((department) => {
+      const required = checklist[department.key];
+      const items = evidenceItems.filter(
+        (e) => e.projectId === projectId && e.department === department.key,
       );
       const submittedTypes = new Set(items.map((i) => i.documentType));
       const missing = required.filter((r) => !submittedTypes.has(r));
-      return { dept: d, required, items, missing };
+      return { dept: department, required, items, missing };
     });
-  }, [projectId, checklist, tick]);
+  }, [projectId, checklist, evidenceItems, tick, visibleDepartments]);
 
   const allItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const verifiedCount = allItems.filter((i) => i.status === "verified").length;
@@ -466,6 +552,7 @@ function IsometricSubmission() {
     setTick((t) => t + 1);
     setConfirmOpen(false);
     setChecked({});
+    void onSubmitted();
     toast.success("Submitted to Isometric", {
       description: `Reference ${SUBMISSIONS[project.id].reference}`,
     });
@@ -624,7 +711,7 @@ function IsometricSubmission() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => downloadEvidence(it)}
+                          onClick={() => downloadEvidence(it, projects)}
                         >
                           <Download className="h-3.5 w-3.5 mr-1" /> Download
                         </Button>
@@ -639,7 +726,7 @@ function IsometricSubmission() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => g.items.forEach(downloadEvidence)}
+                  onClick={() => g.items.forEach((item) => downloadEvidence(item, projects))}
                 >
                   <Download className="h-3.5 w-3.5 mr-1" /> Download all ({g.items.length})
                 </Button>
@@ -693,9 +780,9 @@ function IsometricSubmission() {
   );
 }
 
-function downloadEvidence(it: EvidenceItem) {
-  const dept = DEPARTMENTS.find((d) => d.key === it.department)?.label ?? it.department;
-  const project = PROJECTS.find((p) => p.id === it.projectId);
+function downloadEvidence(it: EvidenceItem, projects: ProjectRecord[]) {
+  const dept = getDefaultDepartments().find((department) => department.key === it.department)?.label ?? it.department;
+  const project = projects.find((candidate) => candidate.id === it.projectId);
   const content =
     `Zen Carbon — Evidence Document (mock)\n` +
     `====================================\n\n` +

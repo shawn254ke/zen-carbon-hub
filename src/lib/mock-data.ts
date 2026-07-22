@@ -5,6 +5,7 @@ export type Project = {
   code: string;
   name: string;
   category: ProjectCategory;
+  pathway?: "liquid_co2" | "carbonated_water";
   status: "active" | "planning" | "verification" | "closed";
   location: string;
   registry?: string;
@@ -12,57 +13,27 @@ export type Project = {
   startDate: string;
   emissionsAvoidedTco2e: number;
   batchesRun: number;
+  evidencesCount?: number;
+  labCount?: number;
+  evidences?: EvidenceItem[];
+  labResults?: LabResult[];
+  emissions?: EmissionActivity[];
+  batch?: Batch[];
+  labAnalysis?: LaboratoryAnalysis[];
+};
+
+export type LaboratoryAnalysis = {
+  id: string;
+  labResultId?: string;
+  fileName: string;
+  summary?: string;
+  findings?: string;
+  recommendations?: string;
+  uploadedBy?: string;
 };
 
 export const PROJECTS: Project[] = [
-  {
-    id: "p_001",
-    code: "ZC-IND-001",
-    name: "Nairobi Biochar Facility",
-    category: "industrial",
-    status: "active",
-    location: "Nairobi, Kenya",
-    registry: "Isometric",
-    methodology: "Isometric Biochar v1.0",
-    startDate: "2024-06-12",
-    emissionsAvoidedTco2e: 4820,
-    batchesRun: 142,
-  },
-  {
-    id: "p_002",
-    code: "ZC-IND-002",
-    name: "Mombasa Pyrolysis Plant",
-    category: "industrial",
-    status: "verification",
-    location: "Mombasa, Kenya",
-    registry: "Isometric",
-    methodology: "Isometric Biochar v1.0",
-    startDate: "2024-09-03",
-    emissionsAvoidedTco2e: 1920,
-    batchesRun: 61,
-  },
-  {
-    id: "p_003",
-    code: "ZC-INT-014",
-    name: "Feedstock Trial — Coffee Husk",
-    category: "internal",
-    status: "active",
-    location: "R&D Lab, Nakuru",
-    startDate: "2025-02-18",
-    emissionsAvoidedTco2e: 0,
-    batchesRun: 24,
-  },
-  {
-    id: "p_004",
-    code: "ZC-INT-015",
-    name: "Reactor Retention Time Study",
-    category: "internal",
-    status: "planning",
-    location: "R&D Lab, Nakuru",
-    startDate: "2025-04-01",
-    emissionsAvoidedTco2e: 0,
-    batchesRun: 6,
-  },
+  
 ];
 
 export type Batch = {
@@ -95,11 +66,11 @@ export const DEPARTMENTS: { key: Department; label: string; description: string 
 ];
 
 export const CHECKLIST: Record<Department, string[]> = {
-  ic: ["Technical drawings", "Sensor datasheets", "Calibration certificates", "Standard operating procedures (SOPs)"],
-  mechanical: ["Technical drawings", "Maintenance records", "Standard operating procedures (SOPs)"],
-  chemical: ["Process flow diagrams", "Mass balance diagrams"],
-  mrv: ["LCA boundary diagrams", "MRV plan", "Baseline report"],
-  admin: ["Operating permits", "Environmental permits", "Accreditations", "Compliance documents"],
+  ic: [],
+  mechanical: [],
+  chemical: [],
+  mrv: [],
+  admin: [],
 };
 
 export type EvidenceItem = {

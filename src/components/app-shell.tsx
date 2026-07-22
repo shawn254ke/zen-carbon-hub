@@ -37,14 +37,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useEffect, type ReactNode } from "react";
-import logoAsset from "@/assets/zen-logo.png.asset.json";
+import logoAsset from "@/assets/Zen_logo.png";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/projects", label: "Projects", icon: FolderKanban },
   { to: "/evidence", label: "Evidence Repository", icon: FileCheck2 },
   { to: "/verification", label: "Verification Readiness", icon: ShieldCheck },
-  { to: "/inventory", label: "Inventory", icon: Boxes },
+  // { to: "/inventory", label: "Inventory", icon: Boxes },
   { to: "/lab-results", label: "Lab Results", icon: FlaskConical },
   { to: "/emissions", label: "Emissions Activities", icon: Gauge },
   { to: "/profile", label: "Profile & Settings", icon: UserCircle2 },
@@ -101,7 +101,7 @@ function NavItem({
 }
 
 function SidebarUserFooter() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -136,8 +136,8 @@ function SidebarUserFooter() {
           size="sm"
           className={`gap-2 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ${collapsed ? "w-9 justify-center px-0" : "w-full justify-start"}`}
           onClick={() => {
-            window.localStorage.removeItem("zc_user");
-            navigate({ to: "/login" });
+            logout();
+            navigate({ to: "/login", replace: true });
           }}
           title="Log out"
         >
@@ -171,11 +171,11 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <div className="flex items-center gap-2 px-2 py-2">
-              <img src={logoAsset.url} alt="Zen Carbon" className="h-8 w-8 rounded-md object-contain bg-white/90 p-0.5" />
+              <img src={logoAsset} alt="Zen Carbon" className="h-8 w-8 rounded-md object-contain bg-white/90 p-0.5" />
               <div className="leading-tight">
                 <div className="text-sm font-semibold text-sidebar-foreground">Zen Carbon</div>
                 <div className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-                  DMRV · Inventory
+                  DMRV
                 </div>
               </div>
             </div>
@@ -204,9 +204,9 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
 
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 flex items-center gap-3 border-b bg-card px-4">
-            <SidebarTrigger />
+            <SidebarTrigger className = "block md:hidden"/>
             <h1 className="text-base font-semibold text-foreground">{title}</h1>
-            <div className="ml-auto flex items-center gap-3">
+            {/* <div className="ml-auto flex items-center gap-3">
               <span className="text-xs text-muted-foreground hidden sm:inline">Preview as</span>
               <Select value={user.role} onValueChange={(v) => setRole(v as Role)}>
                 <SelectTrigger className="h-9 w-[220px]">
@@ -220,7 +220,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </div> */}
           </header>
           <main className="flex-1 p-6 overflow-auto">{children}</main>
         </div>

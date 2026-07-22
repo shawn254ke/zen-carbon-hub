@@ -15,6 +15,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LabResultsRouteImport } from './routes/lab-results'
 import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as EvidenceRouteImport } from './routes/evidence'
 import { Route as EmissionsRouteImport } from './routes/emissions'
 import { Route as ClientRouteImport } from './routes/client'
@@ -51,6 +52,11 @@ const InventoryRoute = InventoryRouteImport.update({
   path: '/inventory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EvidenceRoute = EvidenceRouteImport.update({
   id: '/evidence',
   path: '/evidence',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/client': typeof ClientRoute
   '/emissions': typeof EmissionsRoute
   '/evidence': typeof EvidenceRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
   '/login': typeof LoginRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/client': typeof ClientRoute
   '/emissions': typeof EmissionsRoute
   '/evidence': typeof EvidenceRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
   '/login': typeof LoginRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/client': typeof ClientRoute
   '/emissions': typeof EmissionsRoute
   '/evidence': typeof EvidenceRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inventory': typeof InventoryRoute
   '/lab-results': typeof LabResultsRoute
   '/login': typeof LoginRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/client'
     | '/emissions'
     | '/evidence'
+    | '/forgot-password'
     | '/inventory'
     | '/lab-results'
     | '/login'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/client'
     | '/emissions'
     | '/evidence'
+    | '/forgot-password'
     | '/inventory'
     | '/lab-results'
     | '/login'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/client'
     | '/emissions'
     | '/evidence'
+    | '/forgot-password'
     | '/inventory'
     | '/lab-results'
     | '/login'
@@ -164,6 +176,7 @@ export interface RootRouteChildren {
   ClientRoute: typeof ClientRoute
   EmissionsRoute: typeof EmissionsRoute
   EvidenceRoute: typeof EvidenceRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InventoryRoute: typeof InventoryRoute
   LabResultsRoute: typeof LabResultsRoute
   LoginRoute: typeof LoginRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory'
       fullPath: '/inventory'
       preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/evidence': {
@@ -271,6 +291,7 @@ const rootRouteChildren: RootRouteChildren = {
   ClientRoute: ClientRoute,
   EmissionsRoute: EmissionsRoute,
   EvidenceRoute: EvidenceRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InventoryRoute: InventoryRoute,
   LabResultsRoute: LabResultsRoute,
   LoginRoute: LoginRoute,
@@ -281,3 +302,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

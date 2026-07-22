@@ -1,13 +1,12 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { PROJECTS, BATCHES, LAB_RESULTS, EVIDENCE, EMISSIONS, DEPARTMENTS, type EvidenceItem, type LabResult } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { getStoredSession, useAuth } from "@/lib/auth";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
@@ -15,6 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
+import { getDefaultDepartments } from "@/lib/evidence-config-api";
+import { fetchProjectsApi, getProjectsCache, type Batch, type EvidenceItem, type LabResult, type LaboratoryAnalysis, type Project } from "@/lib/projects-api";
+
+const DEPARTMENTS = getDefaultDepartments();
 
 type ExtraBatch = {
   id: string;
@@ -36,6 +39,45 @@ const EXTRA_BATCH_KEY = "zc_extra_batches_v1";
 type Pathway = "liquid_co2" | "carbonated_water";
 const PROJECT_SETTINGS_KEY = "zc_project_settings_v1";
 
+function normalizePathway(rawPathway: string | null | undefined): Pathway | undefined {
+  const normalized = (rawPathway ?? "").trim().toLowerCase();
+  if (normalized === "liquid_co2" || normalized === "carbonated_water") {
+    return normalized;
+  }
+  return undefined;
+}
+
+function getStoredProjectPathway(projectId: string): Pathway | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  const raw = window.localStorage.getItem(PROJECT_SETTINGS_KEY);
+  if (!raw) return undefined;
+
+  try {
+    const map = JSON.parse(raw) as Record<string, { pathway?: string }>;
+    return normalizePathway(map[projectId]?.pathway);
+  } catch {
+    return undefined;
+  }
+}
+
+function setStoredProjectPathway(projectId: string, pathway: Pathway) {
+  if (typeof window === "undefined") return;
+
+  const raw = window.localStorage.getItem(PROJECT_SETTINGS_KEY);
+  let map: Record<string, { pathway?: Pathway }> = {};
+  if (raw) {
+    try {
+      map = JSON.parse(raw);
+    } catch {
+      map = {};
+    }
+  }
+
+  map[projectId] = { ...map[projectId], pathway };
+  window.localStorage.setItem(PROJECT_SETTINGS_KEY, JSON.stringify(map));
+}
+
 type LiquidCo2Entry = { id: string; co2InjectedG: number; timestamp: string };
 type CarbonatedWaterEntry = {
   id: string;
@@ -55,6 +97,52 @@ type CarbonatedWaterEntry = {
 };
 type BatchDataEntry = LiquidCo2Entry | CarbonatedWaterEntry;
 const BATCH_DATA_KEY = "zc_batch_data_v1";
+
+function mapApiBatchToEntries(batch: Batch, pathway: Pathway): BatchDataEntry[] {
+  const hasTimestamp = Boolean(batch.timestamp || batch.runDate);
+
+  if (pathway === "liquid_co2") {
+    if (batch.co2Injected == null && !hasTimestamp) return [];
+    return [{
+      id: `api-${batch.id}`,
+      co2InjectedG: Number(batch.co2Injected ?? 0),
+      timestamp: batch.timestamp ?? batch.runDate,
+    }];
+  }
+
+  const hasCarbonatedWaterData =
+    batch.waterUsed != null ||
+    batch.initialPh != null ||
+    batch.finalPh != null ||
+    batch.dissolvedCo2 != null ||
+    batch.initialTemp != null ||
+    batch.finalTemp != null ||
+    batch.initialPressure != null ||
+    batch.finalPressure != null ||
+    batch.initialFlowRate != null ||
+    batch.finalFlowRate != null ||
+    batch.energy != null ||
+    hasTimestamp;
+
+  if (!hasCarbonatedWaterData) return [];
+
+  return [{
+    id: `api-${batch.id}`,
+    waterUsed: Number(batch.waterUsed ?? 0),
+    initialPh: Number(batch.initialPh ?? 0),
+    finalPh: Number(batch.finalPh ?? 0),
+    initialDissolvedCo2: Number(batch.dissolvedCo2 ?? 0),
+    finalDissolvedCo2: Number(batch.dissolvedCo2 ?? 0),
+    initialTemp: Number(batch.initialTemp ?? 0),
+    finalTemp: Number(batch.finalTemp ?? 0),
+    initialPressure: Number(batch.initialPressure ?? 0),
+    finalPressure: Number(batch.finalPressure ?? 0),
+    initialFlowRate: Number(batch.initialFlowRate ?? 0),
+    finalFlowRate: Number(batch.finalFlowRate ?? 0),
+    energyUsed: Number(batch.energy?.replace(/[^0-9.-]/g, "") ?? 0),
+    timestamp: batch.timestamp ?? batch.runDate,
+  }];
+}
 
 type Analysis = {
   fileName: string;
@@ -79,8 +167,14 @@ export const Route = createFileRoute("/projects/$projectId")({
       <p className="text-muted-foreground">Something went wrong loading this project.</p>
     </AppShell>
   ),
-  loader: ({ params }) => {
-    const p = PROJECTS.find((x) => x.id === params.projectId);
+  loader: async ({ params }) => {
+    const cachedProject = getProjectsCache().find((project) => project.id === params.projectId);
+    if (cachedProject) {
+      return cachedProject;
+    }
+
+    const projects = await fetchProjectsApi().catch(() => getProjectsCache());
+    const p = projects.find((project) => project.id === params.projectId);
     if (!p) throw notFound();
     return p;
   },
@@ -98,10 +192,35 @@ function useAnalyses() {
   return { analyses };
 }
 
+function mapProjectAnalyses(project: Project): Record<string, Analysis> {
+  return Object.fromEntries(
+    ((project.labAnalysis ?? []) as LaboratoryAnalysis[])
+      .filter((analysis) => analysis.labResultId)
+      .map((analysis) => [
+        analysis.labResultId as string,
+        {
+          fileName: analysis.fileName,
+          summary: analysis.summary ?? "",
+          keyFindings: analysis.findings,
+          recommendation: analysis.recommendations,
+          author: analysis.uploadedBy ?? "System",
+          uploadedOn: "—",
+        },
+      ]),
+  );
+}
+
 function ProjectDetail() {
   const project = Route.useLoaderData();
-  const { can, user } = useAuth();
-  const { analyses } = useAnalyses();
+  const { can, user, token } = useAuth();
+  const { analyses: storedAnalyses } = useAnalyses();
+  const analyses = useMemo(
+    () => ({
+      ...mapProjectAnalyses(project),
+      ...storedAnalyses,
+    }),
+    [project, storedAnalyses],
+  );
   const [extraBatches, setExtraBatches] = useState<ExtraBatch[]>([]);
   useEffect(() => {
     const raw = typeof window !== "undefined" ? window.localStorage.getItem(EXTRA_BATCH_KEY) : null;
@@ -112,24 +231,24 @@ function ProjectDetail() {
     window.localStorage.setItem(EXTRA_BATCH_KEY, JSON.stringify(next));
   };
 
-  // Per-project pathway setting
-  const [pathway, setPathway] = useState<Pathway>("liquid_co2");
+  // Per-project pathway setting: prefer API/cache value, then local storage fallback.
+  const [pathway, setPathway] = useState<Pathway>(normalizePathway(project.pathway) ?? "liquid_co2");
   useEffect(() => {
-    const raw = typeof window !== "undefined" ? window.localStorage.getItem(PROJECT_SETTINGS_KEY) : null;
-    if (raw) {
-      try {
-        const map = JSON.parse(raw) as Record<string, { pathway?: Pathway }>;
-        if (map[project.id]?.pathway) setPathway(map[project.id].pathway!);
-      } catch { /* ignore */ }
+    const pathwayFromProject = normalizePathway(project.pathway);
+    const pathwayFromStorage = getStoredProjectPathway(project.id);
+    const nextPathway = pathwayFromProject ?? pathwayFromStorage ?? "liquid_co2";
+
+    setPathway(nextPathway);
+
+    // Keep local storage aligned with the server-backed project value.
+    if (pathwayFromProject && pathwayFromProject !== pathwayFromStorage) {
+      setStoredProjectPathway(project.id, pathwayFromProject);
     }
-  }, [project.id]);
+  }, [project.id, project.pathway]);
+
   const persistPathway = (p: Pathway) => {
     setPathway(p);
-    const raw = window.localStorage.getItem(PROJECT_SETTINGS_KEY);
-    let map: Record<string, { pathway?: Pathway }> = {};
-    if (raw) { try { map = JSON.parse(raw); } catch { /* ignore */ } }
-    map[project.id] = { ...map[project.id], pathway: p };
-    window.localStorage.setItem(PROJECT_SETTINGS_KEY, JSON.stringify(map));
+    setStoredProjectPathway(project.id, p);
   };
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -151,28 +270,102 @@ function ProjectDetail() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [entryDialogBatch, setEntryDialogBatch] = useState<string | null>(null);
 
-  const mockBatches = BATCHES.filter((b) => b.projectId === project.id);
+  const apiBatches = project.batch ?? [];
   const projectExtras = extraBatches.filter((b) => b.projectId === project.id);
   const allBatches = useMemo(() => [
     ...projectExtras.map((b) => ({
       id: b.id, code: b.code, runDate: b.runDate,
       finesKg: b.finesKg, coarseKg: b.coarseKg, biocharKg: b.biocharKg,
       cementKg: b.cementKg, waterKg: b.waterKg, admixtureKg: b.admixtureKg,
-      status: b.status, createdBy: b.createdBy, extra: b as ExtraBatch | undefined,
+      status: b.status, createdBy: b.createdBy, extra: b as ExtraBatch | undefined, apiBatch: undefined as Batch | undefined,
     })),
-    ...mockBatches.map((b) => ({
+    ...apiBatches.map((b) => ({
       id: b.id, code: b.code, runDate: b.runDate,
-      finesKg: undefined, coarseKg: undefined, biocharKg: undefined,
-      cementKg: undefined, waterKg: undefined, admixtureKg: undefined,
-      status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined,
+      finesKg: b.fines, coarseKg: b.coarse, biocharKg: undefined,
+      cementKg: b.cement, waterKg: b.waterUsed, admixtureKg: b.addMixture,
+      status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined, apiBatch: b,
     })),
-  ], [projectExtras, mockBatches]);
+  ], [apiBatches, projectExtras]);
   const [addOpen, setAddOpen] = useState(false);
-  const labs = LAB_RESULTS.filter((l) => l.projectId === project.id);
-  const evidence = EVIDENCE.filter((e) => e.projectId === project.id);
-  const emissions = EMISSIONS.filter((e) => e.projectId === project.id);
+  const labs = project.labResults ?? [];
+  const evidence = project.evidences ?? [];
+  const emissions = project.emissions ?? [];
+
+  const evidenceCount = project.evidencesCount ?? evidence.length;
+  const labCount = project.labCount ?? labs.length;
+  const batchesRunCount = project.batchesRun || apiBatches.length;
 
   const projectAnalyses = labs.filter((l) => analyses[l.id]);
+
+  const downloadEvidence = async (it: EvidenceItem) => {
+    const authToken = token ?? getStoredSession().token;
+    const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+    const rawIdCandidates = [
+      it.documents?.[0]?.id,
+      ...((it.documents ?? []).map((doc) => doc.id)),
+      it.id,
+    ];
+
+    const documentIds = [...new Set(
+      rawIdCandidates
+        .map((value) => String(value ?? "").trim())
+        .filter((value) => /^\d+$/.test(value) && Number(value) > 0),
+    )];
+
+    if (documentIds.length === 0) {
+      toast.error("Unable to download this file because the document id is missing.");
+      return;
+    }
+
+    const endpointCandidates = documentIds.flatMap((documentId) => {
+      const relative = `/api/evidence-documents/${documentId}`;
+      if (!base) return [relative];
+      return [`${base}${relative}`, relative];
+    });
+
+    let lastError: Error | null = null;
+
+    for (const endpoint of endpointCandidates) {
+      try {
+        const response = await fetch(endpoint, {
+          method: "GET",
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "");
+          throw new Error(errorText || `Download failed (${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("content-disposition") ?? "";
+        const matchedFileName = disposition.match(/filename=\"?([^\";]+)\"?/i)?.[1];
+        const fallbackId = endpoint.match(/\/(\d+)$|$/)?.[1] ?? "document";
+        const downloadName = matchedFileName || it.fileName || `evidence-${fallbackId}`;
+
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = downloadName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Unable to download evidence.");
+      }
+    }
+
+    toast.error(lastError?.message ?? "Unable to download evidence.");
+  };
+
+  const downloadAllEvidence = async (items: EvidenceItem[]) => {
+    for (const item of items) {
+      await downloadEvidence(item);
+    }
+  };
 
   return (
     <AppShell title={project.name}>
@@ -187,12 +380,10 @@ function ProjectDetail() {
               {project.category === "industrial" ? "Industrial · " + (project.registry ?? "") : "Internal test"}
             </Badge>
             <Badge variant="outline">{project.status}</Badge>
-            {project.category === "internal" && (
-              <Badge variant="outline" className="ml-auto">
-                Pathway: {pathway === "liquid_co2" ? "Liquid CO₂" : "Carbonated water"}
-              </Badge>
-            )}
-            {project.category === "internal" && can("projects:edit") && (
+            <Badge variant="outline" className="ml-auto">
+              Pathway: {pathway === "liquid_co2" ? "Liquid CO₂" : "Carbonated water"}
+            </Badge>
+            {can("projects:edit") && (
               <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline"><Settings2 className="h-4 w-4 mr-1" /> Settings</Button>
@@ -210,16 +401,16 @@ function ProjectDetail() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
-          <MiniStat label="Batches run" value={String(project.batchesRun)} />
-          <MiniStat label="Removals (tCO₂e)" value={project.emissionsAvoidedTco2e.toLocaleString()} />
-          <MiniStat label="Evidence docs" value={String(evidence.length)} />
-          <MiniStat label="Lab results" value={String(labs.length)} />
+          <MiniStat label="Batches run" value={String(batchesRunCount)} />
+          <MiniStat label="Removals (tCO₂e)" value={Number(project.emissionsAvoidedTco2e ?? 0).toLocaleString()} />
+          <MiniStat label="Evidence docs" value={String(evidenceCount)} />
+          <MiniStat label="Lab results" value={String(labCount)} />
         </div>
 
         <Tabs defaultValue="operations">
           <TabsList>
             <TabsTrigger value="operations">Operations</TabsTrigger>
-            {project.category === "internal" && <TabsTrigger value="batches">Batches</TabsTrigger>}
+            <TabsTrigger value="batches">Batches</TabsTrigger>
             <TabsTrigger value="evidence">Evidence</TabsTrigger>
             <TabsTrigger value="lab">Lab results</TabsTrigger>
             <TabsTrigger value="emissions">Emissions</TabsTrigger>
@@ -229,21 +420,20 @@ function ProjectDetail() {
             <Card>
               <CardHeader>
                 <CardTitle>Operational sensor data</CardTitle>
-                <CardDescription>Latest readings and process telemetry (mock).</CardDescription>
+                <CardDescription>Latest readings and process telemetry.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
-                <SensorTile label="Reactor temperature" value="512 °C" trend="stable" />
-                <SensorTile label="Feed rate" value="118 kg/h" trend="↑ 2%" />
+                <SensorTile label="Injected CO₂" value="0.001 tCO₂e" trend="stable" />
+                <SensorTile label="Dissolved CO₂" value="0.0005 ppm" trend="↑ 2%" />
                 <SensorTile label="Residence time" value="24 min" trend="stable" />
-                <SensorTile label="O₂ level" value="1.8 %" trend="↓ 0.3" />
-                <SensorTile label="Flue gas T" value="380 °C" trend="stable" />
-                <SensorTile label="Uptime (30d)" value="94.2 %" trend="↑" />
+                <SensorTile label="Pressure" value="1.2 bar" trend="↓ 0.3" />
+                <SensorTile label="Temperature" value="380 °C" trend="stable" />
+                <SensorTile label="Avg PH" value="5.4" trend="↑" />
               </CardContent>
             </Card>
           </TabsContent>
 
-          {project.category === "internal" && (
-            <TabsContent value="batches" className="mt-4">
+          <TabsContent value="batches" className="mt-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
@@ -287,7 +477,7 @@ function ProjectDetail() {
                     <TableBody>
                       {allBatches.map((b) => {
                         const isOpen = !!expanded[b.id];
-                        const entries = batchData[b.id] ?? [];
+                        const entries = batchData[b.id] ?? (b.apiBatch ? mapApiBatchToEntries(b.apiBatch, pathway) : []);
                         return (
                           <Fragment key={b.id}>
                             <TableRow>
@@ -347,7 +537,6 @@ function ProjectDetail() {
                 )}
               </Dialog>
             </TabsContent>
-          )}
 
           <TabsContent value="evidence" className="mt-4 space-y-4">
             {DEPARTMENTS.map((d) => {
@@ -360,7 +549,7 @@ function ProjectDetail() {
                       <CardDescription>{items.length} document(s)</CardDescription>
                     </div>
                     {items.length > 0 && (
-                      <Button variant="outline" size="sm" onClick={() => items.forEach(downloadEvidence)}>
+                      <Button variant="outline" size="sm" onClick={() => { void downloadAllEvidence(items); }}>
                         <Download className="h-4 w-4 mr-1" /> Download all
                       </Button>
                     )}
@@ -391,7 +580,7 @@ function ProjectDetail() {
                                 <Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button size="sm" variant="outline" onClick={() => downloadEvidence(e)}>
+                                <Button size="sm" variant="outline" onClick={() => { void downloadEvidence(e); }}>
                                   <Download className="h-4 w-4 mr-1" /> Download
                                 </Button>
                               </TableCell>
@@ -446,7 +635,7 @@ function ProjectDetail() {
                             {a ? (
                               <div className="flex items-center gap-1.5 text-xs">
                                 <FlaskConical className="h-3.5 w-3.5 text-primary" />
-                                <span className="truncate max-w-[160px]" title={a.fileName}>{a.fileName}</span>
+                                <span className="truncate max-w-40" title={a.fileName}>{a.fileName}</span>
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">No analysis</span>
@@ -527,31 +716,8 @@ function SensorTile({ label, value, trend }: { label: string; value: string; tre
   );
 }
 
-function downloadEvidence(it: EvidenceItem) {
-  const dept = DEPARTMENTS.find((d) => d.key === it.department)?.label ?? it.department;
-  const project = PROJECTS.find((p) => p.id === it.projectId);
-  const content =
-    `Zen Carbon — Evidence Document (mock)\n` +
-    `====================================\n\n` +
-    `File name:      ${it.fileName}\n` +
-    `Document type:  ${it.documentType}\n` +
-    `Department:     ${dept}\n` +
-    `Project:        ${project?.code ?? it.projectId} — ${project?.name ?? ""}\n` +
-    `Uploaded by:    ${it.uploadedBy}\n` +
-    `Uploaded at:    ${it.uploadedAt}\n` +
-    `Status:         ${it.status}\n` +
-    `Reference id:   ${it.id}\n\n` +
-    `This is a placeholder for the original uploaded document, provided so\n` +
-    `reviewers can counter-check submissions before sending them to Isometric.\n`;
-  const blob = new Blob([content], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = it.fileName.endsWith(".txt") ? it.fileName : `${it.fileName}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function findProjectById(projectId: string) {
+  return getProjectsCache().find((project) => project.id === projectId);
 }
 
 function AddBatchDialog({
@@ -632,7 +798,7 @@ function Field({
 }
 
 function downloadLabResult(it: LabResult) {
-  const project = PROJECTS.find((p) => p.id === it.projectId);
+  const project = findProjectById(it.projectId);
   const content =
     `Zen Carbon — Lab Result (mock)\n` +
     `==============================\n\n` +
@@ -659,7 +825,7 @@ function downloadLabResult(it: LabResult) {
 }
 
 function downloadAnalysis(l: LabResult, a: Analysis) {
-  const project = PROJECTS.find((p) => p.id === l.projectId);
+  const project = findProjectById(l.projectId);
   const content =
     `Zen Carbon — Lab Result Analysis (mock)\n` +
     `=====================================\n\n` +

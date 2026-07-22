@@ -3,16 +3,18 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
-  useRouter,
+  useNavigate,
   HeadContent,
   Scripts,
+  useLocation,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AuthProvider } from "../lib/auth";
+import { AuthProvider, useAuth } from "../lib/auth";
 import { ChecklistProvider } from "../lib/checklist-store";
+import { ProjectsProvider } from "../lib/projects-context";
 
 function NotFoundComponent() {
   return (
@@ -38,7 +40,7 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
-  const router = useRouter();
+  const navigate = useNavigate();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
@@ -55,7 +57,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              router.invalidate();
+              navigate({ to: "/login", replace: true });
               reset();
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
@@ -121,11 +123,29 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ChecklistProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </ChecklistProvider>
+        <ProjectsProvider>
+          <ChecklistProvider>
+            <AuthRedirectGate />
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </ChecklistProvider>
+        </ProjectsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+function AuthRedirectGate() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    const publicPaths = ["/login", "/forgot-password"];
+    if (!isAuthenticated && !publicPaths.includes(location.pathname)) {
+      navigate({ to: "/login", replace: true });
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+
+  return null;
 }

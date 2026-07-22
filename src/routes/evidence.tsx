@@ -6,17 +6,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Circle, Upload, Lock, Pencil, Trash2 } from "lucide-react";
+import { Check, Circle, Upload, Lock, Pencil, Trash2, Loader2 } from "lucide-react";
 import { CheckCircle2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DEPARTMENTS, EVIDENCE, PROJECTS, type Department, type EvidenceItem } from "@/lib/mock-data";
+import { createEvidenceApi, deleteEvidenceApi, fetchEvidenceApi, type EvidenceItem, updateEvidenceApi } from "@/lib/evidence-api";
+import { type Department } from "@/lib/evidence-config-api";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth, type Role } from "@/lib/auth";
 import { toast } from "sonner";
+import { useProjects } from "@/lib/projects-context";
+import { type Project } from "@/lib/projects-api";
+
+type ProjectRecord = Project;
+
+type CreateEvidenceDocumentDtoFields = {
+  checklistId: string;
+  uploadedById: string;
+  documentType: string;
+  version: string;
+};
+
+type UploadState = "idle" | "uploading" | "success" | "error";
 
 export const Route = createFileRoute("/evidence")({
   component: EvidencePage,
@@ -45,11 +59,45 @@ function useCanUploadFor() {
   };
 }
 
+function useEvidenceItems() {
+  const [items, setItems] = useState<EvidenceItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadEvidence = async () => {
+    try {
+      const nextItems = await fetchEvidenceApi();
+      setItems(nextItems);
+      setError(null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load evidence.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadEvidence();
+  }, []);
+
+  return { items, isLoading, error, reload: loadEvidence };
+}
+
 function EvidencePage() {
   const canUploadFor = useCanUploadFor();
-  const [tick, setTick] = useState(0);
-  const [projectId, setProjectId] = useState<string>(PROJECTS[0]?.id ?? "");
-  const selectedProject = PROJECTS.find((p) => p.id === projectId);
+  const { departments, error: checklistError, getChecklistForProject } = useChecklist();
+  const { items: evidenceItems, isLoading: isEvidenceLoading, error: evidenceError, reload: reloadEvidence } = useEvidenceItems();
+  const { projects, isLoading: isProjectsLoading, error: projectsError } = useProjects();
+  const [projectId, setProjectId] = useState<string>("");
+  const checklist = getChecklistForProject(projectId);
+
+  useEffect(() => {
+    if (projects.length > 0 && !projects.some((project) => project.id === projectId)) {
+      setProjectId(projects[0].id);
+    }
+  }, [projectId, projects]);
+
+  const selectedProject = projects.find((p) => p.id === projectId);
   return (
     <AppShell title="Evidence Repository">
       <div className="space-y-4">
@@ -65,31 +113,40 @@ function EvidencePage() {
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select project" /></SelectTrigger>
               <SelectContent>
-                {PROJECTS.map((p) => (
+                {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
+        {checklistError && <p className="text-sm text-destructive">{checklistError}</p>}
+        {projectsError && <p className="text-sm text-destructive">{projectsError}</p>}
+        {evidenceError && <p className="text-sm text-destructive">{evidenceError}</p>}
+        {isProjectsLoading && <p className="text-sm text-muted-foreground">Loading projects...</p>}
+        {isEvidenceLoading && <p className="text-sm text-muted-foreground">Loading evidence...</p>}
 
-        {selectedProject && <ProjectCompletionBanner projectId={projectId} key={`banner-${tick}`} />}
+        {selectedProject && <ProjectCompletionBanner projectId={projectId} projects={projects} departments={departments} checklist={checklist} evidenceItems={evidenceItems} />}
 
         <Tabs defaultValue="ic">
           <TabsList className="flex-wrap h-auto">
-            {DEPARTMENTS.map((d) => (
-              <TabsTrigger key={d.key} value={d.key}>{d.label}</TabsTrigger>
+            {departments.map((department) => (
+              <TabsTrigger key={department.key} value={department.key}>{department.label}</TabsTrigger>
             ))}
           </TabsList>
 
-          {DEPARTMENTS.map((d) => (
-            <TabsContent key={d.key} value={d.key} className="mt-4 space-y-4">
-              <ChecklistCard dept={d.key} projectId={projectId} key={`c-${tick}-${projectId}`} />
+          {departments.map((department) => (
+            <TabsContent key={department.key} value={department.key} className="mt-4 space-y-4">
+              <ChecklistCard dept={department.key} deptLabel={department.label} projectId={projectId} required={checklist[department.key]} evidenceItems={evidenceItems} />
               <EvidenceTable
-                dept={d.key}
+                dept={department.key}
+                deptLabel={department.label}
                 projectId={projectId}
-                canUpload={canUploadFor(d.key)}
-                onUploaded={() => setTick((t) => t + 1)}
+                projects={projects}
+                required={checklist[department.key]}
+                canUpload={canUploadFor(department.key)}
+                evidenceItems={evidenceItems}
+                onUploaded={reloadEvidence}
               />
             </TabsContent>
           ))}
@@ -99,16 +156,28 @@ function EvidencePage() {
   );
 }
 
-function ProjectCompletionBanner({ projectId }: { projectId: string }) {
-  const { checklist } = useChecklist();
-  const project = PROJECTS.find((p) => p.id === projectId)!;
-  const perDept = DEPARTMENTS.map((d) => {
-    const required = checklist[d.key];
+function ProjectCompletionBanner({
+  projectId,
+  projects,
+  departments,
+  checklist,
+  evidenceItems,
+}: {
+  projectId: string;
+  projects: ProjectRecord[];
+  departments: { key: Department; label: string }[];
+  checklist: Record<Department, string[]>;
+  evidenceItems: EvidenceItem[];
+}) {
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) return null;
+  const perDept = departments.map((department) => {
+    const required = checklist[department.key];
     const submitted = new Set(
-      EVIDENCE.filter((e) => e.projectId === projectId && e.department === d.key).map((e) => e.documentType),
+      evidenceItems.filter((e) => e.projectId === projectId && e.department === department.key).map((e) => e.documentType),
     );
     const done = required.filter((r) => submitted.has(r)).length;
-    return { dept: d, done, total: required.length };
+    return { dept: department, done, total: required.length };
   });
   const totalDone = perDept.reduce((s, x) => s + x.done, 0);
   const totalReq = perDept.reduce((s, x) => s + x.total, 0);
@@ -146,10 +215,20 @@ function ProjectCompletionBanner({ projectId }: { projectId: string }) {
   );
 }
 
-function ChecklistCard({ dept, projectId }: { dept: Department; projectId: string }) {
-  const { checklist } = useChecklist();
-  const required = checklist[dept];
-  const items = EVIDENCE.filter((e) => e.department === dept && e.projectId === projectId);
+function ChecklistCard({
+  dept,
+  deptLabel,
+  projectId,
+  required,
+  evidenceItems,
+}: {
+  dept: Department;
+  deptLabel: string;
+  projectId: string;
+  required: string[];
+  evidenceItems: EvidenceItem[];
+}) {
+  const items = evidenceItems.filter((e) => e.department === dept && e.projectId === projectId);
   const submittedTypes = new Set(items.map((i) => i.documentType));
   const allDone = required.length > 0 && required.every((r) => submittedTypes.has(r));
   return (
@@ -158,7 +237,7 @@ function ChecklistCard({ dept, projectId }: { dept: Department; projectId: strin
         <div>
           <CardTitle className="text-base">Verification checklist</CardTitle>
           <CardDescription>
-            Required documents for {DEPARTMENTS.find((d) => d.key === dept)!.label}. Additional documents can also be uploaded.
+            Required documents for {deptLabel}. Additional documents can also be uploaded.
           </CardDescription>
         </div>
         {allDone && (
@@ -181,23 +260,36 @@ function ChecklistCard({ dept, projectId }: { dept: Department; projectId: strin
   );
 }
 
-function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Department; projectId: string; canUpload: boolean; onUploaded: () => void }) {
-  const [tick, setTick] = useState(0);
+function EvidenceTable({
+  dept,
+  deptLabel,
+  projectId,
+  projects,
+  required,
+  canUpload,
+  evidenceItems,
+  onUploaded,
+}: {
+  dept: Department;
+  deptLabel: string;
+  projectId: string;
+  projects: ProjectRecord[];
+  required: string[];
+  canUpload: boolean;
+  evidenceItems: EvidenceItem[];
+  onUploaded: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<EvidenceItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<EvidenceItem | null>(null);
   const { user } = useAuth();
   const items = useMemo(
-    () => EVIDENCE.filter((e) => e.department === dept && e.projectId === projectId),
-    [dept, projectId, tick],
+    () => evidenceItems.filter((e) => e.department === dept && e.projectId === projectId),
+    [dept, evidenceItems, projectId],
   );
-  const deptLabel = DEPARTMENTS.find((d) => d.key === dept)!.label;
   const canManage = (e: EvidenceItem) =>
     canUpload && (user.role === "admin" || user.role === "dept_mrv" || e.uploadedBy === user.name);
-  const bump = () => {
-    setTick((t) => t + 1);
-    onUploaded();
-  };
+  const bump = () => onUploaded();
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -222,7 +314,7 @@ function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Depar
           </TableRow></TableHeader>
           <TableBody>
             {items.map((e) => {
-              const proj = PROJECTS.find((p) => p.id === e.projectId);
+              const proj = projects.find((p) => p.id === e.projectId);
               return (
                 <TableRow key={e.id}>
                   <TableCell>{proj?.code}</TableCell>
@@ -258,12 +350,18 @@ function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Depar
         open={open}
         onOpenChange={setOpen}
         dept={dept}
+        deptLabel={deptLabel}
+        projects={projects}
+        required={required}
+        evidenceItems={evidenceItems}
         onSubmitted={bump}
       />
       <EditEvidenceDialog
         item={editItem}
         onOpenChange={(v) => { if (!v) setEditItem(null); }}
         dept={dept}
+        projects={projects}
+        required={required}
         onSaved={bump}
       />
       <AlertDialog open={!!deleteItem} onOpenChange={(v) => { if (!v) setDeleteItem(null); }}>
@@ -277,13 +375,16 @@ function EvidenceTable({ dept, projectId, canUpload, onUploaded }: { dept: Depar
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={async () => {
                 if (!deleteItem) return;
-                const idx = EVIDENCE.findIndex((x) => x.id === deleteItem.id);
-                if (idx >= 0) EVIDENCE.splice(idx, 1);
-                toast.success("Evidence deleted");
-                setDeleteItem(null);
-                bump();
+                try {
+                  await deleteEvidenceApi(deleteItem.id);
+                  toast.success("Evidence deleted");
+                  setDeleteItem(null);
+                  bump();
+                } catch (deleteError) {
+                  toast.error(deleteError instanceof Error ? deleteError.message : "Unable to delete evidence.");
+                }
               }}
             >
               Delete
@@ -299,15 +400,17 @@ function EditEvidenceDialog({
   item,
   onOpenChange,
   dept,
+  projects,
+  required,
   onSaved,
 }: {
   item: EvidenceItem | null;
   onOpenChange: (v: boolean) => void;
   dept: Department;
+  projects: ProjectRecord[];
+  required: string[];
   onSaved: () => void;
 }) {
-  const { checklist } = useChecklist();
-  const required = checklist[dept];
   const [projectId, setProjectId] = useState<string>("");
   const [docType, setDocType] = useState<string>("");
   const [otherName, setOtherName] = useState("");
@@ -328,23 +431,33 @@ function EditEvidenceDialog({
     }
   }, [item, required]);
 
-  const save = () => {
+  useEffect(() => {
+    if (!item && projects.length > 0 && !projects.some((project) => project.id === projectId)) {
+      setProjectId(projects[0].id);
+    }
+  }, [item, projectId, projects]);
+
+  const save = async () => {
     if (!item) return;
     const finalType = isOther ? otherName.trim() : docType;
     if (!projectId || !finalType || !fileName.trim()) {
       toast.error("Fill in project, document type and a file");
       return;
     }
-    const idx = EVIDENCE.findIndex((x) => x.id === item.id);
-    if (idx >= 0) {
-      EVIDENCE[idx] = {
-        ...EVIDENCE[idx],
+    try {
+      await updateEvidenceApi(item.id, {
         projectId,
+        department: dept,
         documentType: finalType,
         fileName: fileName.trim(),
+        uploadedBy: item.uploadedBy,
+        uploadedAt: item.uploadedAt,
         status,
         isOther,
-      };
+      });
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : "Unable to update evidence.");
+      return;
     }
     toast.success("Evidence updated");
     onOpenChange(false);
@@ -364,7 +477,7 @@ function EditEvidenceDialog({
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
               <SelectContent>
-                {PROJECTS.map((p) => (
+                {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -417,51 +530,142 @@ function UploadEvidenceDialog({
   open,
   onOpenChange,
   dept,
+  deptLabel,
+  projects,
+  required,
+  evidenceItems,
   onSubmitted,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   dept: Department;
+  deptLabel: string;
+  projects: ProjectRecord[];
+  required: string[];
+  evidenceItems: EvidenceItem[];
   onSubmitted: () => void;
 }) {
   const { user } = useAuth();
-  const { checklist } = useChecklist();
-  const required = checklist[dept];
-  const deptLabel = DEPARTMENTS.find((d) => d.key === dept)!.label;
 
-  const [projectId, setProjectId] = useState<string>(PROJECTS[0]?.id ?? "");
+  const [projectId, setProjectId] = useState<string>(projects[0]?.id ?? "");
   const [docType, setDocType] = useState<string>(required[0] ?? "__other");
   const [otherName, setOtherName] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadState, setUploadState] = useState<UploadState>("idle");
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string>("");
+
+  const submittedTypesForProject = useMemo(
+    () => new Set(
+      evidenceItems
+        .filter((item) => item.department === dept && item.projectId === projectId)
+        .map((item) => item.documentType),
+    ),
+    [dept, evidenceItems, projectId],
+  );
+
+  const availableRequiredTypes = useMemo(
+    () => required.filter((type) => !submittedTypesForProject.has(type)),
+    [required, submittedTypesForProject],
+  );
 
   const isOther = docType === "__other";
+  const selectedFileName = selectedFile?.name ?? "";
+  const isSubmitting = uploadState === "uploading";
 
   const reset = () => {
-    setProjectId(PROJECTS[0]?.id ?? "");
-    setDocType(required[0] ?? "__other");
+    setProjectId(projects[0]?.id ?? "");
+    setDocType("__other");
     setOtherName("");
-    setFileName("");
+    setSelectedFile(null);
+    setUploadState("idle");
+    setUploadErrorMessage("");
   };
 
-  const submit = () => {
+  useEffect(() => {
+    if (projects.length > 0 && !projects.some((project) => project.id === projectId)) {
+      setProjectId(projects[0].id);
+    }
+  }, [projectId, projects]);
+
+  useEffect(() => {
+    if (docType === "__other") return;
+    if (!availableRequiredTypes.includes(docType)) {
+      setDocType(availableRequiredTypes[0] ?? "__other");
+    }
+  }, [availableRequiredTypes, docType]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (docType === "__other") return;
+    if (availableRequiredTypes.length === 0) {
+      setDocType("__other");
+    }
+  }, [availableRequiredTypes, docType, open]);
+
+  const submit = async () => {
+    setUploadErrorMessage("");
     const finalType = isOther ? otherName.trim() : docType;
-    if (!projectId || !finalType || !fileName.trim()) {
+    if (!projectId || !finalType || !selectedFile) {
+      setUploadState("error");
+      setUploadErrorMessage("Fill in project, document type and a file");
       toast.error("Fill in project, document type and a file");
       return;
     }
-    const item: EvidenceItem = {
-      id: `e_${Date.now()}`,
-      projectId,
-      department: dept,
+
+    const uploadedById = /^\d+$/.test(user.id) ? user.id : "";
+    if (!uploadedById) {
+      setUploadState("error");
+      setUploadErrorMessage("Unable to determine uploader id for this account.");
+      toast.error("Unable to determine uploader id for this account.");
+      return;
+    }
+
+    const selectedProject = projects.find((project) => project.id === projectId);
+    const checklistId = !isOther
+      ? selectedProject?.checklistTemplates?.find((template) =>
+        template.department === dept
+        && template.label === finalType
+        && (template.projectId == null || template.projectId === projectId),
+      )?.id ?? ""
+      : "";
+
+    if (!isOther && !checklistId) {
+      setUploadState("error");
+      setUploadErrorMessage("Unable to determine checklist id for the selected document type.");
+      toast.error("Unable to determine checklist id for the selected document type.");
+      return;
+    }
+
+    const createEvidenceDocumentDto: CreateEvidenceDocumentDtoFields = {
+      checklistId,
+      uploadedById,
       documentType: finalType,
-      fileName: fileName.trim(),
-      uploadedBy: user.name,
-      uploadedAt: new Date().toISOString().slice(0, 10),
-      status: "pending",
-      isOther,
+      version: "v1",
     };
-    EVIDENCE.unshift(item);
+
+    const formData = new FormData();
+    formData.append("projectId", projectId);
+    formData.append("file", selectedFile);
+    (Object.entries(createEvidenceDocumentDto) as [keyof CreateEvidenceDocumentDtoFields, string][]).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+
+    try {
+      setUploadState("uploading");
+      await createEvidenceApi(formData);
+    } catch (submitError) {
+      const errorMessage = submitError instanceof Error ? submitError.message : "Unable to upload evidence.";
+      setUploadState("error");
+      setUploadErrorMessage(errorMessage);
+      // Keep a detailed trace in dev tools for troubleshooting multipart failures.
+      console.error("Evidence upload failed", submitError);
+      toast.error(errorMessage);
+      return;
+    }
+
+    setUploadState("success");
     toast.success("Evidence uploaded");
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
     reset();
     onOpenChange(false);
     onSubmitted();
@@ -482,7 +686,7 @@ function UploadEvidenceDialog({
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger>
               <SelectContent>
-                {PROJECTS.map((p) => (
+                {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -493,12 +697,15 @@ function UploadEvidenceDialog({
             <Select value={docType} onValueChange={setDocType}>
               <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
               <SelectContent>
-                {required.map((r) => (
+                {availableRequiredTypes.map((r) => (
                   <SelectItem key={r} value={r}>{r}</SelectItem>
                 ))}
                 <SelectItem value="__other">Other (supporting document)</SelectItem>
               </SelectContent>
             </Select>
+            {availableRequiredTypes.length === 0 && (
+              <p className="text-xs text-muted-foreground">All required checklist documents are already submitted for this project.</p>
+            )}
           </div>
           {isOther && (
             <div className="grid gap-2">
@@ -510,14 +717,36 @@ function UploadEvidenceDialog({
             <Label>File</Label>
             <Input
               type="file"
-              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
+              onChange={(e) => {
+                setSelectedFile(e.target.files?.[0] ?? null);
+                if (uploadState !== "uploading") {
+                  setUploadState("idle");
+                  setUploadErrorMessage("");
+                }
+              }}
             />
-            {fileName && <p className="text-xs text-muted-foreground">Selected: {fileName}</p>}
+            {selectedFileName && <p className="text-xs text-muted-foreground">Selected: {selectedFileName}</p>}
+            {uploadState === "uploading" && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Uploading file...
+              </p>
+            )}
+            {uploadState === "success" && (
+              <p className="flex items-center gap-2 text-xs text-primary animate-pulse">
+                <CheckCircle2 className="h-3 w-3" /> File uploaded successfully.
+              </p>
+            )}
+            {uploadState === "error" && uploadErrorMessage && (
+              <p className="text-xs text-destructive wrap-break-word">{uploadErrorMessage}</p>
+            )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit}><Upload className="h-4 w-4 mr-1" /> Upload</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancel</Button>
+          <Button onClick={submit} disabled={isSubmitting}>
+            {uploadState === "uploading" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+            {uploadState === "uploading" ? "Uploading..." : uploadState === "success" ? "Uploaded" : "Upload"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

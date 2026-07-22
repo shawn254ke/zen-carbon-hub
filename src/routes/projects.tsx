@@ -1,7 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { PROJECTS, type Project, type ProjectCategory } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +31,116 @@ import {
 import { Label } from "@/components/ui/label";
 import { LayoutGrid, List, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { expireSession } from "@/lib/auth";
+import {
+  deleteProjectApi,
+  fetchProjectsApi,
+  getProjectsCache,
+  removeProjectFromCache,
+  type Project,
+  type ProjectCategory,
+  updateProjectApi,
+  upsertProjectCache,
+} from "@/lib/projects-api";
+
+type CreateProjectPayload = {
+  name: string;
+  code: string;
+  location: string;
+  methodology: string;
+  project_type_id: string;
+  status: string;
+  pathway: Pathway;
+};
+
+type UpdateProjectPayload = {
+  name: string;
+  code: string;
+  location: string;
+  methodology: string;
+  project_type_id: string;
+  status: string;
+  pathway: Pathway;
+};
+
+type Pathway = "liquid_co2" | "carbonated_water";
+
+const PATHWAY_OPTIONS: Array<{ value: Pathway; label: string; description: string }> = [
+  {
+    value: "liquid_co2",
+    label: "Liquid CO2",
+    description: "Use when the project records injected liquid CO2 events.",
+  },
+  {
+    value: "carbonated_water",
+    label: "Carbonated water",
+    description: "Use when the project records carbonated water process data.",
+  },
+];
+
+const PROJECT_TYPE_ID_BY_CATEGORY: Record<ProjectCategory, string> = {
+  industrial: "1",
+  internal: "2",
+};
+
+async function getApiErrorMessage(response: Response, fallback: string) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const data = await response
+      .json()
+      .catch(() => null) as { message?: string; error?: string; details?: string } | null;
+
+    if (data?.message?.trim()) return data.message;
+    if (data?.error?.trim()) return data.error;
+    if (data?.details?.trim()) return data.details;
+  } else {
+    const text = await response.text().catch(() => "");
+    if (text.trim()) return text;
+  }
+
+  if (response.status === 401) {
+    expireSession();
+    return "Your session has expired. Please sign in again.";
+  }
+  if (response.status === 403) return "You do not have permission to create projects.";
+  if (response.status === 409) return "A project with that code already exists.";
+  if (response.status >= 500) return "Server error while creating project. Please try again.";
+
+  return fallback;
+}
+
+async function createProjectApi(payload: CreateProjectPayload, token?: string | null) {
+  const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+  const endpoints = base ? [`${base}/api/projects`, "/api/projects"] : ["/api/projects"];
+
+  let lastMessage = "Unable to create project right now.";
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await response.text().catch(() => "");
+
+      if (response.ok) {
+        return;
+      }
+
+      lastMessage = await getApiErrorMessage(response, `Create project failed (${response.status})`);
+    } catch {
+      lastMessage = "Unable to reach the project service.";
+    }
+  }
+
+  throw new Error(lastMessage);
+}
 
 export const Route = createFileRoute("/projects")({
   component: ProjectsLayout,
@@ -43,15 +152,58 @@ type ViewMode = "grid" | "table";
 function ProjectsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { can } = useAuth();
-  const [, setTick] = useState(0);
+  const [projects, setProjects] = useState<Project[]>(() => getProjectsCache());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [view, setView] = useState<ViewMode>("grid");
   const [tab, setTab] = useState<ProjectCategory>("industrial");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProjects = async () => {
+      setIsLoading(true);
+      try {
+        const nextProjects = await fetchProjectsApi();
+        if (!cancelled) {
+          setProjects(nextProjects);
+          setLoadError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setProjects(getProjectsCache());
+          setLoadError(error instanceof Error ? error.message : "Unable to load projects.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const refreshProjects = async () => {
+    try {
+      const nextProjects = await fetchProjectsApi();
+      setProjects(nextProjects);
+      setLoadError(null);
+    } catch (error) {
+      setProjects(getProjectsCache());
+      setLoadError(error instanceof Error ? error.message : "Unable to load projects.");
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return PROJECTS.filter((p) => p.category === tab)
+    return projects.filter((p) => p.category === tab)
       .filter((p) => (status === "all" ? true : p.status === status))
       .filter((p) =>
         !q
@@ -61,7 +213,7 @@ function ProjectsLayout() {
               .toLowerCase()
               .includes(q),
       );
-  }, [query, status, tab]);
+  }, [projects, query, status, tab]);
 
   const canCreate = can("projects:create");
 
@@ -82,10 +234,13 @@ function ProjectsLayout() {
           {canCreate && (
             <ProjectFormDialog
               defaultCategory={tab}
-              onSaved={() => setTick((t) => t + 1)}
+              onSaved={refreshProjects}
             />
           )}
         </div>
+        {loadError && (
+          <p className="text-sm text-destructive">{loadError}</p>
+        )}
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as ProjectCategory)}>
           <TabsList>
@@ -94,7 +249,7 @@ function ProjectsLayout() {
           </TabsList>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[220px] max-w-md">
+            <div className="relative flex-1 min-w-55 max-w-md">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={query}
@@ -104,7 +259,7 @@ function ProjectsLayout() {
               />
             </div>
             <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
-              <SelectTrigger className="w-[170px]">
+              <SelectTrigger className="w-42.5">
                 <SelectValue placeholder="Filter status" />
               </SelectTrigger>
               <SelectContent>
@@ -132,10 +287,10 @@ function ProjectsLayout() {
           </div>
 
           <TabsContent value="industrial" className="mt-4">
-            <ProjectResults list={filtered} view={view} onChanged={() => setTick((t) => t + 1)} />
+            <ProjectResults list={filtered} view={view} isLoading={isLoading} onChanged={refreshProjects} />
           </TabsContent>
           <TabsContent value="internal" className="mt-4">
-            <ProjectResults list={filtered} view={view} onChanged={() => setTick((t) => t + 1)} />
+            <ProjectResults list={filtered} view={view} isLoading={isLoading} onChanged={refreshProjects} />
           </TabsContent>
         </Tabs>
       </div>
@@ -143,7 +298,25 @@ function ProjectsLayout() {
   );
 }
 
-function ProjectResults({ list, view, onChanged }: { list: Project[]; view: ViewMode; onChanged: () => void }) {
+function ProjectResults({
+  list,
+  view,
+  isLoading,
+  onChanged,
+}: {
+  list: Project[];
+  view: ViewMode;
+  isLoading: boolean;
+  onChanged: () => void | Promise<void>;
+}) {
+  if (isLoading && list.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+        Loading projects...
+      </div>
+    );
+  }
+
   if (list.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -185,7 +358,7 @@ function ProjectGrid({ list, onChanged }: { list: Project[]; onChanged: () => vo
               {p.methodology && <div>Methodology: {p.methodology}</div>}
               <div className="flex justify-between pt-2 text-foreground">
                 <span>{p.batchesRun} batches</span>
-                <span>{p.emissionsAvoidedTco2e.toLocaleString()} tCO₂e</span>
+                <span>{(p.emissionsAvoidedTco2e ?? 0).toLocaleString()} tCO₂e</span>
               </div>
             </CardContent>
           </Link>
@@ -230,7 +403,7 @@ function ProjectTable({ list, onChanged }: { list: Project[]; onChanged: () => v
                 <Badge variant={p.status === "active" ? "default" : "secondary"}>{p.status}</Badge>
               </TableCell>
               <TableCell className="text-right">{p.batchesRun}</TableCell>
-              <TableCell className="text-right">{p.emissionsAvoidedTco2e.toLocaleString()}</TableCell>
+              <TableCell className="text-right">{(p.emissionsAvoidedTco2e ?? 0).toLocaleString()}</TableCell>
               {canEdit && (
                 <TableCell className="text-right">
                   <RowActions project={p} onChanged={onChanged} />
@@ -244,15 +417,27 @@ function ProjectTable({ list, onChanged }: { list: Project[]; onChanged: () => v
   );
 }
 
-function RowActions({ project, onChanged }: { project: Project; onChanged: () => void }) {
+function RowActions({ project, onChanged }: { project: Project; onChanged: () => void | Promise<void> }) {
+  const { token } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const remove = () => {
-    const i = PROJECTS.findIndex((x) => x.id === project.id);
-    if (i >= 0) PROJECTS.splice(i, 1);
-    setConfirmOpen(false);
-    onChanged();
+  const remove = async () => {
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    try {
+      await deleteProjectApi(project.id, token);
+      removeProjectFromCache(project.id);
+      setConfirmOpen(false);
+      await onChanged();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Unable to delete project right now.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -306,14 +491,16 @@ function RowActions({ project, onChanged }: { project: Project; onChanged: () =>
               This removes the project from the workspace. Related batches, evidence, and lab
               results will no longer be linked to a project.
             </AlertDialogDescription>
+            {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={remove}
+                disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete project
+                {isDeleting ? "Deleting..." : "Delete project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -333,8 +520,9 @@ function ProjectFormDialog({
   project?: Project;
   open?: boolean;
   onOpenChange?: (v: boolean) => void;
-  onSaved: () => void;
+  onSaved: () => void | Promise<void>;
 }) {
+  const { token } = useAuth();
   const isEdit = !!project;
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -346,6 +534,9 @@ function ProjectFormDialog({
   const [location, setLocation] = useState(project?.location ?? "");
   const [methodology, setMethodology] = useState(project?.methodology ?? "");
   const [status, setStatus] = useState<Project["status"]>(project?.status ?? "planning");
+  const [pathway, setPathway] = useState<Pathway>(project?.pathway ?? "liquid_co2");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset form when opening for a different project
   useMemo(() => {
@@ -356,47 +547,92 @@ function ProjectFormDialog({
       setLocation(project.location);
       setMethodology(project.methodology ?? "");
       setStatus(project.status);
+      setPathway(project.pathway ?? "carbonated_water");
+    }
+
+    if (open && !project) {
+      setPathway("carbonated_water");
     }
   }, [open, project]);
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim() || !code.trim()) return;
-    if (isEdit && project) {
-      const i = PROJECTS.findIndex((x) => x.id === project.id);
-      if (i >= 0) {
-        PROJECTS[i] = {
-          ...PROJECTS[i],
+    setSubmitError(null);
+
+    setIsSubmitting(true);
+
+    try {
+      if (isEdit && project) {
+        const payload: UpdateProjectPayload = {
+          name: name.trim(),
+          code: code.trim(),
+          location: location.trim(),
+          methodology: methodology.trim(),
+          project_type_id: PROJECT_TYPE_ID_BY_CATEGORY[category],
+          status,
+          pathway,
+        };
+
+        await updateProjectApi(
+          project.id,
+          payload,
+          token,
+        );
+
+        upsertProjectCache({
+          ...project,
           name: name.trim(),
           code: code.trim(),
           category,
+          pathway,
           status,
           location: location.trim() || "—",
-          registry: category === "industrial" ? PROJECTS[i].registry ?? "Isometric" : undefined,
-          methodology: methodology.trim() || undefined,
+          registry: category === "industrial" ? project.registry ?? "Isometric" : undefined,
+          methodology: methodology.trim(),
+        });
+      } else {
+        const nextProject: Project = {
+          id: code.trim(),
+          code: code.trim(),
+          name: name.trim(),
+          category,
+          pathway,
+          status,
+          location: location.trim() || "—",
+          registry: category === "industrial" ? "Isometric" : undefined,
+          methodology: methodology.trim(),
+          startDate: new Date().toISOString().slice(0, 10),
+          emissionsAvoidedTco2e: 0,
+          batchesRun: 0,
         };
+
+        await createProjectApi(
+          {
+            name: nextProject.name,
+            code: nextProject.code,
+            location: location.trim(),
+            methodology: methodology.trim(),
+            project_type_id: PROJECT_TYPE_ID_BY_CATEGORY[category],
+            status,
+            pathway,
+          },
+          token,
+        );
+
+        upsertProjectCache(nextProject);
+        setName("");
+        setCode("");
+        setLocation("");
+        setMethodology("");
+        setStatus("planning");
       }
-    } else {
-      PROJECTS.unshift({
-        id: `p_${Date.now()}`,
-        code: code.trim(),
-        name: name.trim(),
-        category,
-        status,
-        location: location.trim() || "—",
-        registry: category === "industrial" ? "Isometric" : undefined,
-        methodology: methodology.trim() || undefined,
-        startDate: new Date().toISOString().slice(0, 10),
-        emissionsAvoidedTco2e: 0,
-        batchesRun: 0,
-      });
-      setName("");
-      setCode("");
-      setLocation("");
-      setMethodology("");
-      setStatus("planning");
+      setOpen(false);
+      await onSaved();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Unable to save project right now.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setOpen(false);
-    onSaved();
   };
 
   return (
@@ -457,13 +693,32 @@ function ProjectFormDialog({
             </div>
           </div>
           <div className="grid gap-1.5">
+            <Label>Pathway</Label>
+            <Select value={pathway} onValueChange={(v) => setPathway(v as Pathway)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a pathway" />
+              </SelectTrigger>
+              <SelectContent>
+                {PATHWAY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {PATHWAY_OPTIONS.find((option) => option.value === pathway)?.description}
+            </p>
+          </div>
+          <div className="grid gap-1.5">
             <Label htmlFor="np-meth">Methodology (optional)</Label>
             <Input id="np-meth" value={methodology} onChange={(e) => setMethodology(e.target.value)} placeholder="Isometric Biochar v1.0" />
           </div>
+          {submitError && <p className="text-xs text-destructive">{submitError}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={!name.trim() || !code.trim()}>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>Cancel</Button>
+          <Button onClick={submit} disabled={!name.trim() || !code.trim() || isSubmitting}>
             {isEdit ? "Save changes" : "Create project"}
           </Button>
         </DialogFooter>
