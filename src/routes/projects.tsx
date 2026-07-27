@@ -112,7 +112,8 @@ async function getApiErrorMessage(response: Response, fallback: string) {
 
 async function createProjectApi(payload: CreateProjectPayload, token?: string | null) {
   const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
-  const endpoints = base ? [`${base}/api/projects`, "/api/projects"] : ["/api/projects"];
+  // Keep create requests on the configured backend to avoid accidental calls to the frontend host.
+  const endpoints = base ? [`${base}/api/projects`] : ["/api/projects"];
 
   let lastMessage = "Unable to create project right now.";
 
@@ -126,8 +127,6 @@ async function createProjectApi(payload: CreateProjectPayload, token?: string | 
         },
         body: JSON.stringify(payload),
       });
-
-      const text = await response.text().catch(() => "");
 
       if (response.ok) {
         return;

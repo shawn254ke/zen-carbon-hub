@@ -257,7 +257,9 @@ let projectsCache: Project[] = [];
 
 function getProjectsEndpoints() {
   const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
-  return base ? [`${base}/api/projects`, "/api/projects"] : ["/api/projects"];
+  // When an explicit API base URL is configured, always target it directly.
+  // Falling back to relative paths can hit the frontend dev server and produce misleading 404s.
+  return base ? [`${base}/api/projects`] : ["/api/projects"];
 }
 
 function getProjectBackendId(projectId: string) {
