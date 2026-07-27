@@ -140,14 +140,15 @@ function RootComponent() {
 function AuthRedirectGate() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthReady } = useAuth();
 
   useEffect(() => {
+    if (!isAuthReady) return;
     const publicPaths = ["/login", "/forgot-password"];
     if (!isAuthenticated && !publicPaths.includes(location.pathname)) {
       navigate({ to: "/login", replace: true });
     }
-  }, [isAuthenticated, location.pathname, navigate]);
+  }, [isAuthReady, isAuthenticated, location.pathname, navigate]);
 
   return null;
 }

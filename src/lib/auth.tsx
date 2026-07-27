@@ -35,9 +35,11 @@ type AuthCtx = {
   user: User;
   token: string | null;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
   login: (credentials: { email: string; password: string }) => Promise<User>;
   logout: () => void;
   setRole: (r: Role) => void;
+  updateProfile: (nextValues: Partial<Pick<User, "name" | "email">>) => void;
   can: (perm: Permission) => boolean;
 };
 
@@ -225,15 +227,17 @@ function buildUserFromApi(payload: LoginApiResponse, fallbackEmail = ""): User {
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User>(() => getStoredSession().user);
-  const [token, setToken] = useState<string | null>(() => getStoredSession().token);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => getStoredSession().isAuthenticated);
+  const [user, setUser] = useState<User>(DEFAULT_USER);
+  const [token, setToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 
   useEffect(() => {
     const handleAuthExpired = () => {
       setUser(DEFAULT_USER);
       setToken(null);
       setIsAuthenticated(false);
+      setIsAuthReady(true);
     };
 
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
@@ -249,7 +253,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(stored.user);
       setToken(stored.token);
       setIsAuthenticated(true);
+    } else {
+      setUser(DEFAULT_USER);
+      setToken(null);
+      setIsAuthenticated(false);
     }
+    setIsAuthReady(true);
   }, []);
 
   const login = async (credentials: { email: string; password: string }) => {
@@ -310,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       token,
       isAuthenticated,
+      isAuthReady,
       login,
       logout: () => {
         expireSession();
@@ -319,9 +329,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(next);
         persistSession(next, token);
       },
+      updateProfile: (nextValues) => {
+        const next = {
+          ...user,
+          ...(nextValues.name != null ? { name: nextValues.name } : {}),
+          ...(nextValues.email != null ? { email: nextValues.email } : {}),
+        };
+        setUser(next);
+        persistSession(next, token);
+      },
       can: (perm) => PERMS[user.role].includes(perm) || PERMS[user.role].includes("admin:all"),
     }),
-    [isAuthenticated, token, user],
+    [isAuthReady, isAuthenticated, token, user],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

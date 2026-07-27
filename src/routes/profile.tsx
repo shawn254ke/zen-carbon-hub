@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ShieldCheck, UserPlus, UserX, UserCheck, Trash2 } from "lucide-react";
 import { useAuth, ROLE_LABELS, type Role } from "@/lib/auth";
+import { updateUserApi } from "@/lib/users-api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
@@ -41,8 +42,101 @@ const INITIAL_USERS: ManagedUser[] = [
 ];
 
 function ProfilePage() {
-  const { user } = useAuth();
+  const { user, token, updateProfile } = useAuth();
   const isAdmin = user.role === "admin";
+  const [fullName, setFullName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [phone, setPhone] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  useEffect(() => {
+    setFullName(user.name);
+    setEmail(user.email);
+  }, [user.email, user.name]);
+
+  const splitFullName = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return { firstName: "", lastName: "" };
+    const parts = trimmed.split(/\s+/);
+    return {
+      firstName: parts[0] ?? "",
+      lastName: parts.slice(1).join(" "),
+    };
+  };
+
+  const saveProfile = async () => {
+    const normalizedName = fullName.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedName || !normalizedEmail) {
+      toast.error("Name and email are required");
+      return;
+    }
+
+    const { firstName, lastName } = splitFullName(normalizedName);
+
+    setIsSavingProfile(true);
+    try {
+      await updateUserApi(user.id, {
+        firstName,
+        lastName,
+        email: normalizedEmail,
+        phone: phone.trim() || undefined,
+      }, token);
+
+      updateProfile({ name: normalizedName, email: normalizedEmail });
+      toast.success("Profile updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const savePassword = async () => {
+    if (!newPassword) {
+      toast.error("Enter a new password");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    const normalizedName = fullName.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName || !normalizedEmail) {
+      toast.error("Name and email are required before changing password");
+      return;
+    }
+    const { firstName, lastName } = splitFullName(normalizedName);
+
+    setIsSavingPassword(true);
+    try {
+      await updateUserApi(user.id, {
+        firstName,
+        lastName,
+        email: normalizedEmail,
+        phone: phone.trim() || undefined,
+        password: newPassword,
+      }, token);
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update password");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
   return (
     <AppShell title="Profile & Settings">
       <div className="max-w-3xl space-y-6">
@@ -60,11 +154,11 @@ function ProfilePage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="name">Full name</Label>
-                <Input id="name" defaultValue={user.name} />
+                <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" defaultValue={user.email} />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>Role</Label>
@@ -72,10 +166,12 @@ function ProfilePage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" placeholder="+254…" />
+                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+254..." />
               </div>
             </div>
-            <Button>Save changes</Button>
+            <Button onClick={saveProfile} disabled={isSavingProfile}>
+              {isSavingProfile ? "Saving..." : "Save changes"}
+            </Button>
           </CardContent>
         </Card>
 
@@ -97,9 +193,34 @@ function ProfilePage() {
             <CardTitle>Security</CardTitle>
             <CardDescription>Password and session preferences.</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Button variant="outline">Change password</Button>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-password">New password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm-password">Confirm new password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" onClick={savePassword} disabled={isSavingPassword}>
+                {isSavingPassword ? "Updating password..." : "Update password"}
+              </Button>
             <Button variant="outline">Sign out of all sessions</Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -170,7 +291,7 @@ function UserManagementCard() {
                 </TableCell>
                 <TableCell>
                   <Select value={u.role} onValueChange={(v) => updateRole(u.id, v as Role)} disabled={!u.active}>
-                    <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-55"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
                         <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
