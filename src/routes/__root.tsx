@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { ChecklistProvider } from "../lib/checklist-store";
 import { ProjectsProvider } from "../lib/projects-context";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -128,6 +129,7 @@ function RootComponent() {
             <AuthRedirectGate />
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />
+            <Toaster />
           </ChecklistProvider>
         </ProjectsProvider>
       </AuthProvider>

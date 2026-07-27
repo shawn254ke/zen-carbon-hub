@@ -378,7 +378,7 @@ function EvidenceTable({
               onClick={async () => {
                 if (!deleteItem) return;
                 try {
-                  await deleteEvidenceApi(deleteItem.id);
+                  await deleteEvidenceApi(deleteItem.documentId ?? deleteItem.id);
                   toast.success("Evidence deleted");
                   setDeleteItem(null);
                   bump();

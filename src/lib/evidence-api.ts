@@ -6,6 +6,7 @@ export type EvidenceStatus = "pending" | "verified" | "rejected";
 
 export type EvidenceItem = {
   id: string;
+  documentId?: string;
   projectId: string;
   department: Department;
   documentType: string;
@@ -18,6 +19,8 @@ export type EvidenceItem = {
 
 type BackendEvidenceDto = {
   id?: string | number | null;
+  documentId?: string | number | null;
+  evidenceDocumentId?: string | number | null;
   projectId?: string | number | null;
   documentType?: string | null;
   fileName?: string | null;
@@ -26,6 +29,15 @@ type BackendEvidenceDto = {
   uploadedAt?: string | null;
   status?: string | null;
   department?: string | null;
+  documents?: Array<{
+    id?: string | number | null;
+    DocumentType?: string | null;
+    fileName?: string | null;
+    uploadDate?: string | null;
+    createdAt?: string | null;
+    status?: string | null;
+    uploadedByName?: string | null;
+  }> | null;
 };
 
 type FetchEvidenceOptions = {
@@ -63,6 +75,14 @@ function getEvidenceUploadEndpoints() {
   // can hit the frontend server and return an HTML 404 page.
   if (!base) return paths;
   return paths.map((path) => `${base}${path}`);
+}
+
+function getEvidenceDeleteEndpoints() {
+  const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+  const paths = ["/api/evidence-documents", "/api/evidences", "/api/evidence"];
+
+  if (!base) return paths;
+  return paths.flatMap((path) => [`${base}${path}`, path]);
 }
 
 function getAuthHeaders(token?: string | null, includeJson = false) {
@@ -116,15 +136,19 @@ function hasUploadedEvidence(item: BackendEvidenceDto) {
 }
 
 function mapEvidenceItem(item: BackendEvidenceDto): EvidenceItem {
+  const primaryDocument = item.documents?.[0];
+  const documentId = primaryDocument?.id ?? item.documentId ?? item.evidenceDocumentId ?? null;
+
   return {
     id: String(item.id ?? `e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
+    documentId: documentId == null ? undefined : String(documentId),
     projectId: String(item.projectId ?? ""),
     department: normalizeDepartment(item.department),
-    documentType: (item.documentType ?? "Evidence document").trim(),
-    fileName: (item.fileName ?? item.file ?? "evidence.txt").trim(),
-    uploadedBy: (item.uploadedBy ?? "System").trim(),
-    uploadedAt: (item.uploadedAt ?? "").trim() || new Date().toISOString().slice(0, 10),
-    status: normalizeEvidenceStatus(item.status),
+    documentType: (primaryDocument?.DocumentType ?? item.documentType ?? "Evidence document").trim(),
+    fileName: (primaryDocument?.fileName ?? item.fileName ?? item.file ?? "evidence.txt").trim(),
+    uploadedBy: (primaryDocument?.uploadedByName ?? item.uploadedBy ?? "System").trim(),
+    uploadedAt: (primaryDocument?.uploadDate ?? primaryDocument?.createdAt ?? item.uploadedAt ?? "").trim() || new Date().toISOString().slice(0, 10),
+    status: normalizeEvidenceStatus(primaryDocument?.status ?? item.status),
   };
 }
 
@@ -254,7 +278,7 @@ export async function updateEvidenceApi(evidenceId: string, payload: UpsertEvide
 }
 
 export async function deleteEvidenceApi(evidenceId: string, token?: string | null) {
-  const endpoints = getEvidenceEndpoints();
+  const endpoints = getEvidenceDeleteEndpoints();
   let lastError: Error | null = null;
 
   for (const endpoint of endpoints) {

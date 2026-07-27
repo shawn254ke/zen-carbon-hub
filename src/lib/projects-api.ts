@@ -16,6 +16,7 @@ export type BatchStatus = "complete" | "in_progress" | "failed";
 
 export type EvidenceItem = {
   id: string;
+  documentId?: string;
   projectId: string;
   department: Department;
   documentType: string;
@@ -380,6 +381,7 @@ function mapEvidenceItems(items: BackendEvidenceDto[] | null | undefined, projec
 
     return {
       id: String(item.id ?? `e_${projectId}_${index}`),
+      documentId: primaryDocument?.id == null ? undefined : String(primaryDocument.id),
       projectId: String(item.projectId ?? projectId),
       department: normalizeDepartment(item.departmentName ?? item.department),
       documentType: (item.item ?? item.documentType ?? primaryDocument?.DocumentType ?? "Evidence document").trim(),
