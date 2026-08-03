@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2, Download } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Plus, Pencil, Trash2, Check, X, Lock, Leaf, Send, FileCheck2, AlertTriangle, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { fetchEvidenceApi, type EvidenceItem } from "@/lib/evidence-api";
 import { useChecklist } from "@/lib/checklist-store";
 import { useAuth } from "@/lib/auth";
@@ -200,7 +200,7 @@ function ProjectOverview({ evidenceItems }: { evidenceItems: EvidenceItem[] }) {
               <TableRow>
                 <TableHead>Project</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead className="min-w-[200px]">Overall readiness</TableHead>
+                <TableHead className="min-w-50">Overall readiness</TableHead>
                 {visibleDepartments.map((department) => (
                   <TableHead key={department.key} className="text-center whitespace-nowrap">
                     {shortDeptLabel(department.key)}
@@ -382,6 +382,9 @@ function DeptChecklistEditor({
   const [newItem, setNewItem] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [savingItem, setSavingItem] = useState<string | null>(null);
+  const [deletingItem, setDeletingItem] = useState<string | null>(null);
 
   return (
     <Card>
@@ -410,12 +413,19 @@ function DeptChecklistEditor({
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7"
+                      disabled={savingItem === it}
                       onClick={async () => {
-                        await renameItem(dept, it, draft, projectId);
-                        setEditing(null);
+                        setSavingItem(it);
+                        try {
+                          await renameItem(dept, it, draft, projectId);
+                          toast.success("Checklist item updated");
+                          setEditing(null);
+                        } finally {
+                          setSavingItem(null);
+                        }
                       }}
                     >
-                      <Check className="h-4 w-4" />
+                      {savingItem === it ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                     </Button>
                     <Button
                       size="icon"
@@ -444,11 +454,18 @@ function DeptChecklistEditor({
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-destructive"
-                      onClick={() => {
-                        void removeItem(dept, it, projectId);
+                      disabled={deletingItem === it}
+                      onClick={async () => {
+                        setDeletingItem(it);
+                        try {
+                          await removeItem(dept, it, projectId);
+                          toast.success("Checklist item removed");
+                        } finally {
+                          setDeletingItem(null);
+                        }
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      {deletingItem === it ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                     </Button>
                   </>
                 )}
@@ -464,8 +481,14 @@ function DeptChecklistEditor({
           className="flex gap-2 pt-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            await addItem(dept, newItem, projectId);
-            setNewItem("");
+            setIsAdding(true);
+            try {
+              await addItem(dept, newItem, projectId);
+              setNewItem("");
+              toast.success("Checklist item added");
+            } finally {
+              setIsAdding(false);
+            }
           }}
         >
           <Input
@@ -473,9 +496,10 @@ function DeptChecklistEditor({
             onChange={(e) => setNewItem(e.target.value)}
             placeholder="Add required document type…"
             className="h-9"
+            disabled={isAdding}
           />
-          <Button type="submit" size="sm">
-            <Plus className="h-4 w-4 mr-1" /> Add
+          <Button type="submit" size="sm" disabled={isAdding}>
+            {isAdding ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />} {isAdding ? "Adding..." : "Add"}
           </Button>
         </form>
       </CardContent>

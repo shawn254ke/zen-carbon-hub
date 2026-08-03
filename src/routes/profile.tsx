@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ShieldCheck, UserPlus, UserX } from "lucide-react";
+import { ShieldCheck, Trash2, UserCheck, UserPlus, UserX } from "lucide-react";
 import { useAuth, ROLE_LABELS, type Role } from "@/lib/auth";
-import { createUserInviteApi, deactivateUserApi, getUsersApi, updateUserApi, type ApiUserRecord } from "@/lib/users-api";
+import { activateUserApi, createUserInviteApi, deactivateUserApi, deleteUserApi, getUsersApi, updateUserApi, type ApiUserRecord } from "@/lib/users-api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
@@ -324,6 +324,8 @@ function UserManagementCard() {
   const [isInviting, setIsInviting] = useState(false);
   const [roleUpdateInFlightId, setRoleUpdateInFlightId] = useState<string | null>(null);
   const [deactivateInFlightId, setDeactivateInFlightId] = useState<string | null>(null);
+  const [activateInFlightId, setActivateInFlightId] = useState<string | null>(null);
+  const [deleteInFlightId, setDeleteInFlightId] = useState<string | null>(null);
 
   const loadUsers = async () => {
     setIsLoadingUsers(true);
@@ -391,6 +393,32 @@ function UserManagementCard() {
       toast.error(error instanceof Error ? error.message : "Unable to deactivate user");
     } finally {
       setDeactivateInFlightId(null);
+    }
+  };
+
+  const activate = async (targetUser: ManagedUser) => {
+    setActivateInFlightId(targetUser.id);
+    try {
+      await activateUserApi(targetUser.id, token);
+      setUsers((prev) => prev.map((u) => (u.id === targetUser.id ? { ...u, active: true, status: "ACTIVE" } : u)));
+      toast.success("Account activated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to activate user");
+    } finally {
+      setActivateInFlightId(null);
+    }
+  };
+
+  const deleteUser = async (targetUser: ManagedUser) => {
+    setDeleteInFlightId(targetUser.id);
+    try {
+      await deleteUserApi(targetUser.id, token);
+      setUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
+      toast.success("User deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to delete user");
+    } finally {
+      setDeleteInFlightId(null);
     }
   };
 
@@ -499,7 +527,56 @@ function UserManagementCard() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  ) : null}
+                  ) : (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" disabled={activateInFlightId === u.id}>
+                          <UserCheck className="h-4 w-4 mr-1" /> Activate
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Activate {u.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            They will regain access to the platform immediately.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => void activate(u)}>
+                            Activate
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
+                          disabled={deleteInFlightId === u.id}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" /> Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {u.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This permanently removes the user account. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => void deleteUser(u)}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </TableCell>
               </TableRow>

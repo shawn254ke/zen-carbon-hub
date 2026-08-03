@@ -85,11 +85,15 @@ function useEvidenceItems() {
 
 function EvidencePage() {
   const canUploadFor = useCanUploadFor();
-  const { departments, error: checklistError, getChecklistForProject } = useChecklist();
+  const { departments, error: checklistError, isLoading: isChecklistLoading, refresh: refreshChecklist, getChecklistForProject } = useChecklist();
   const { items: evidenceItems, isLoading: isEvidenceLoading, error: evidenceError, reload: reloadEvidence } = useEvidenceItems();
   const { projects, isLoading: isProjectsLoading, error: projectsError } = useProjects();
   const [projectId, setProjectId] = useState<string>("");
   const checklist = getChecklistForProject(projectId);
+
+  useEffect(() => {
+    void refreshChecklist();
+  }, [refreshChecklist]);
 
   useEffect(() => {
     if (projects.length > 0 && !projects.some((project) => project.id === projectId)) {
@@ -111,7 +115,7 @@ function EvidencePage() {
           <div className="flex items-center gap-2">
             <Label className="text-xs text-muted-foreground">Project</Label>
             <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select project" /></SelectTrigger>
+              <SelectTrigger className="w-70"><SelectValue placeholder="Select project" /></SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>
@@ -122,6 +126,7 @@ function EvidencePage() {
         </div>
         {checklistError && <p className="text-sm text-destructive">{checklistError}</p>}
         {projectsError && <p className="text-sm text-destructive">{projectsError}</p>}
+        {isChecklistLoading && <p className="text-sm text-muted-foreground">Loading checklist...</p>}
         {evidenceError && <p className="text-sm text-destructive">{evidenceError}</p>}
         {isProjectsLoading && <p className="text-sm text-muted-foreground">Loading projects...</p>}
         {isEvidenceLoading && <p className="text-sm text-muted-foreground">Loading evidence...</p>}

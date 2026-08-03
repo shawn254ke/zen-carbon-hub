@@ -239,3 +239,78 @@ export async function deactivateUserApi(userId: string, token?: string | null) {
 
   throw new Error(lastError);
 }
+
+export async function activateUserApi(userId: string, token?: string | null) {
+  if (!/^\d+$/.test(userId)) {
+    throw new Error("User id is invalid.");
+  }
+
+  const authToken = token ?? getStoredSession().token;
+  const endpoints = getUsersCollectionEndpoints().flatMap((endpoint) => [
+    `${endpoint}/${userId}/activate`,
+    `${endpoint}/activate/${userId}`,
+  ]);
+
+  let lastError = "Unable to activate user right now.";
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: withAuthHeaders(authToken),
+      });
+
+      if (response.ok) {
+        return;
+      }
+
+      if (response.status === 401) {
+        expireSession();
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const apiMessage = await readApiErrorMessage(response);
+      lastError = apiMessage || `Activate failed (${response.status})`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Unable to reach the user service.";
+    }
+  }
+
+  throw new Error(lastError);
+}
+
+export async function deleteUserApi(userId: string, token?: string | null) {
+  if (!/^\d+$/.test(userId)) {
+    throw new Error("User id is invalid.");
+  }
+
+  const authToken = token ?? getStoredSession().token;
+  const endpoints = getUserEndpoints(userId);
+
+  let lastError = "Unable to delete user right now.";
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: withAuthHeaders(authToken),
+      });
+
+      if (response.ok) {
+        return;
+      }
+
+      if (response.status === 401) {
+        expireSession();
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const apiMessage = await readApiErrorMessage(response);
+      lastError = apiMessage || `Delete failed (${response.status})`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Unable to reach the user service.";
+    }
+  }
+
+  throw new Error(lastError);
+}

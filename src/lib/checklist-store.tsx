@@ -24,6 +24,7 @@ type Ctx = {
   getChecklistForProject: (projectId: string) => ChecklistMap;
   isLoading: boolean;
   error: string | null;
+  refresh: () => Promise<void>;
   addItem: (dept: Department, item: string, projectId?: string) => Promise<void>;
   removeItem: (dept: Department, item: string, projectId?: string) => Promise<void>;
   renameItem: (dept: Department, oldItem: string, newItem: string, projectId?: string) => Promise<void>;
@@ -84,10 +85,27 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadConfig = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const nextDepartments = await fetchDepartmentsApi();
+      const nextEntries = await fetchEvidenceChecklistsApi(nextDepartments);
+
+      setDepartments(nextDepartments);
+      setEntries((prev) => mergeEntriesUnique(mergeChecklistEntries(nextEntries), flattenEntries(prev)));
+      setError(null);
+    } catch (loadError) {
+      setDepartments(getDefaultDepartments());
+      setError(loadError instanceof Error ? loadError.message : "Unable to load departments and checklists.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
-    const loadConfig = async () => {
+    const runLoadConfig = async () => {
       try {
         const nextDepartments = await fetchDepartmentsApi();
         const nextEntries = await fetchEvidenceChecklistsApi(nextDepartments);
@@ -109,7 +127,7 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    void loadConfig();
+    void runLoadConfig();
 
     return () => {
       cancelled = true;
@@ -231,7 +249,7 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
     }
   }, [entries, getDepartmentInfo]);
 
-  const value = useMemo(() => ({ departments, checklist, getChecklistForProject, isLoading, error, addItem, removeItem, renameItem }), [departments, checklist, getChecklistForProject, isLoading, error, addItem, removeItem, renameItem]);
+  const value = useMemo(() => ({ departments, checklist, getChecklistForProject, isLoading, error, refresh: loadConfig, addItem, removeItem, renameItem }), [departments, checklist, getChecklistForProject, isLoading, error, loadConfig, addItem, removeItem, renameItem]);
   return <ChecklistCtx.Provider value={value}>{children}</ChecklistCtx.Provider>;
 }
 
