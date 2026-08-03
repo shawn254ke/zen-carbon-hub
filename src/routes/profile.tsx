@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ShieldCheck, UserPlus, UserX, UserCheck, Trash2 } from "lucide-react";
+import { ShieldCheck, UserPlus, UserX } from "lucide-react";
 import { useAuth, ROLE_LABELS, type Role } from "@/lib/auth";
-import { updateUserApi } from "@/lib/users-api";
+import { createUserInviteApi, deactivateUserApi, getUsersApi, updateUserApi, type ApiUserRecord } from "@/lib/users-api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
@@ -22,24 +22,112 @@ export const Route = createFileRoute("/profile")({
 
 type ManagedUser = {
   id: string;
+  firstName: string;
+  lastName: string;
   name: string;
   email: string;
+  phone?: string;
+  status?: string;
   role: Role;
+  roleId?: number;
   active: boolean;
 };
 
-const INITIAL_USERS: ManagedUser[] = [
-  { id: "u_1", name: "Amara Njoroge", email: "amara@zencarbon.io", role: "admin", active: true },
-  { id: "u_2", name: "Joseph Mwangi", email: "joseph@zencarbon.io", role: "dept_ic", active: true },
-  { id: "u_3", name: "Lilian Otieno", email: "lilian@zencarbon.io", role: "dept_mechanical", active: true },
-  { id: "u_4", name: "Sarah Kariuki", email: "sarah@zencarbon.io", role: "dept_chemical", active: true },
-  { id: "u_5", name: "Nadia Achieng", email: "nadia@zencarbon.io", role: "dept_mrv", active: true },
-  { id: "u_6", name: "Tom Wafula", email: "tom@zencarbon.io", role: "dept_admin", active: true },
-  { id: "u_7", name: "Peter Kimani", email: "peter@zencarbon.io", role: "inventory_manager", active: true },
-  { id: "u_8", name: "Grace Muthoni", email: "grace@zencarbon.io", role: "project_manager", active: true },
-  { id: "u_9", name: "Daniel Osei", email: "daniel@zencarbon.io", role: "lab_technician", active: true },
-  { id: "u_10", name: "Mary Njeri", email: "mary@zencarbon.io", role: "auditor", active: false },
+const API_ROLE_BY_UI_ROLE: Record<Role, string> = {
+  admin: "ADMIN",
+  inventory_manager: "INVENTORY_MANAGER",
+  project_manager: "PROJECT_MANAGER",
+  auditor: "AUDITOR",
+  lab_technician: "LAB_TECHNICIAN",
+  viewer: "VIEWER",
+  client: "client",
+  dept_ic: "DEPT_IC",
+  dept_mechanical: "DEPT_MECHANICAL",
+  dept_chemical: "DEPT_CHEMICAL",
+  dept_mrv: "DEPT_MRV",
+  dept_admin: "DEPT_ADMIN",
+};
+
+const ADMIN_MANAGED_ROLES: Role[] = [
+  "admin",
+  "dept_ic",
+  "dept_mrv",
+  "dept_mechanical",
+  "dept_chemical",
+  "client",
 ];
+
+const SEEDED_ROLE_IDS: Partial<Record<Role, number>> = {
+  admin: 1,
+  dept_ic: 2,
+  dept_mrv: 3,
+  dept_mechanical: 4,
+  dept_chemical: 5,
+  client: 6,
+};
+
+function splitFullName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return { firstName: "", lastName: "" };
+  const parts = trimmed.split(/\s+/);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function normalizeRoleFromApi(rawRole: string | null | undefined): Role {
+  const normalized = (rawRole || "").trim().toUpperCase().replace(/^ROLE_/, "");
+
+  switch (normalized) {
+    case "ADMIN":
+      return "admin";
+    case "INVENTORY_MANAGER":
+      return "inventory_manager";
+    case "PROJECT_MANAGER":
+      return "project_manager";
+    case "AUDITOR":
+      return "auditor";
+    case "LAB_TECHNICIAN":
+      return "lab_technician";
+    case "VIEWER":
+      return "viewer";
+    case "CLIENT":
+      return "client";
+    case "DEPT_IC":
+      return "dept_ic";
+    case "DEPT_MECHANICAL":
+      return "dept_mechanical";
+    case "DEPT_CHEMICAL":
+      return "dept_chemical";
+    case "DEPT_MRV":
+      return "dept_mrv";
+    case "DEPT_ADMIN":
+      return "dept_admin";
+    default:
+      return "viewer";
+  }
+}
+
+function mapApiUserToManagedUser(record: ApiUserRecord): ManagedUser {
+  const firstName = record.firstName?.trim() ?? "";
+  const lastName = record.lastName?.trim() ?? "";
+  const fallbackName = (record.email || "").split("@")[0] || "Unknown user";
+  const name = [firstName, lastName].filter(Boolean).join(" ").trim() || fallbackName;
+  const status = record.status?.toUpperCase() ?? "ACTIVE";
+  return {
+    id: String(record.id),
+    firstName,
+    lastName,
+    name,
+    email: record.email?.trim() ?? "",
+    phone: record.phone?.trim() || undefined,
+    status,
+    role: normalizeRoleFromApi(record.role),
+    roleId: typeof record.roleId === "number" ? record.roleId : undefined,
+    active: status !== "DEACTIVATED",
+  };
+}
 
 function ProfilePage() {
   const { user, token, updateProfile } = useAuth();
@@ -56,16 +144,6 @@ function ProfilePage() {
     setFullName(user.name);
     setEmail(user.email);
   }, [user.email, user.name]);
-
-  const splitFullName = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return { firstName: "", lastName: "" };
-    const parts = trimmed.split(/\s+/);
-    return {
-      firstName: parts[0] ?? "",
-      lastName: parts.slice(1).join(" "),
-    };
-  };
 
   const saveProfile = async () => {
     const normalizedName = fullName.trim();
@@ -240,25 +318,109 @@ function ToggleRow({ label, defaultChecked }: { label: string; defaultChecked?: 
 }
 
 function UserManagementCard() {
-  const [users, setUsers] = useState<ManagedUser[]>(INITIAL_USERS);
+  const { token } = useAuth();
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
+  const [roleUpdateInFlightId, setRoleUpdateInFlightId] = useState<string | null>(null);
+  const [deactivateInFlightId, setDeactivateInFlightId] = useState<string | null>(null);
 
-  const updateRole = (id: string, role: Role) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)));
-    toast.success("Role updated");
+  const loadUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const records = await getUsersApi(token);
+      setUsers(records.map(mapApiUserToManagedUser));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to load users");
+    } finally {
+      setIsLoadingUsers(false);
+    }
   };
 
-  const toggleActive = (id: string) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, active: !u.active } : u)));
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
+  const roleIdByUiRole = users.reduce<Partial<Record<Role, number>>>((acc, user) => {
+    if (typeof user.roleId === "number" && acc[user.role] == null) {
+      acc[user.role] = user.roleId;
+    }
+    return acc;
+  }, { ...SEEDED_ROLE_IDS });
+
+  const updateRole = async (targetUser: ManagedUser, role: Role) => {
+    if (targetUser.role === role) return;
+
+    const roleId = roleIdByUiRole[role];
+    if (roleId == null) {
+      toast.error("Role id not available from backend data. Assign this role to one user first, then retry.");
+      return;
+    }
+
+    setRoleUpdateInFlightId(targetUser.id);
+    try {
+      await updateUserApi(
+        targetUser.id,
+        {
+          firstName: targetUser.firstName,
+          lastName: targetUser.lastName,
+          email: targetUser.email,
+          phone: targetUser.phone,
+          status: targetUser.status,
+          roleId,
+        },
+        token,
+      );
+
+      setUsers((prev) => prev.map((u) => (u.id === targetUser.id ? { ...u, role, roleId } : u)));
+      toast.success("Role updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update role");
+    } finally {
+      setRoleUpdateInFlightId(null);
+    }
   };
 
-  const addUser = (u: Omit<ManagedUser, "id" | "active">) => {
-    setUsers((prev) => [{ ...u, id: `u_${Date.now()}`, active: true }, ...prev]);
-    toast.success("User invited");
+  const deactivate = async (targetUser: ManagedUser) => {
+    setDeactivateInFlightId(targetUser.id);
+    try {
+      await deactivateUserApi(targetUser.id, token);
+      setUsers((prev) => prev.map((u) => (u.id === targetUser.id ? { ...u, active: false, status: "DEACTIVATED" } : u)));
+      toast.success("Account deactivated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to deactivate user");
+    } finally {
+      setDeactivateInFlightId(null);
+    }
   };
 
-  const deleteUser = (id: string) => {
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    toast.success("User deleted");
+  const addUser = async (u: { name: string; email: string; role: Role }) => {
+    const { firstName, lastName } = splitFullName(u.name);
+    if (!firstName || !lastName) {
+      toast.error("Please provide both first and last name");
+      return false;
+    }
+
+    setIsInviting(true);
+    try {
+      await createUserInviteApi(
+        {
+          firstName,
+          lastName,
+          email: u.email.trim().toLowerCase(),
+          role: API_ROLE_BY_UI_ROLE[u.role],
+        },
+        token,
+      );
+      toast.success("User invited");
+      await loadUsers();
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to invite user");
+      return false;
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   return (
@@ -270,9 +432,12 @@ function UserManagementCard() {
           </CardTitle>
           <CardDescription>Admin only — assign roles, review access, deactivate accounts.</CardDescription>
         </div>
-        <AddUserDialog onAdd={addUser} />
+        <AddUserDialog onAdd={addUser} isSubmitting={isInviting} />
       </CardHeader>
       <CardContent className="space-y-4">
+        {isLoadingUsers ? (
+          <div className="text-sm text-muted-foreground">Loading users...</div>
+        ) : null}
         <Table>
           <TableHeader>
             <TableRow>
@@ -290,10 +455,14 @@ function UserManagementCard() {
                   <div className="text-xs text-muted-foreground">{u.email}</div>
                 </TableCell>
                 <TableCell>
-                  <Select value={u.role} onValueChange={(v) => updateRole(u.id, v as Role)} disabled={!u.active}>
+                  <Select
+                    value={u.role}
+                    onValueChange={(v) => void updateRole(u, v as Role)}
+                    disabled={!u.active || roleUpdateInFlightId === u.id}
+                  >
                     <SelectTrigger className="w-55"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
+                      {ADMIN_MANAGED_ROLES.map((r) => (
                         <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
                       ))}
                     </SelectContent>
@@ -311,7 +480,7 @@ function UserManagementCard() {
                     {u.active ? (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline" className="text-destructive">
+                        <Button size="sm" variant="outline" className="text-destructive" disabled={deactivateInFlightId === u.id}>
                           <UserX className="h-4 w-4 mr-1" /> Deactivate
                         </Button>
                       </AlertDialogTrigger>
@@ -324,38 +493,13 @@ function UserManagementCard() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => { toggleActive(u.id); toast.success("Account deactivated"); }}>
+                          <AlertDialogAction onClick={() => void deactivate(u)}>
                             Deactivate
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => { toggleActive(u.id); toast.success("Account reactivated"); }}>
-                      <UserCheck className="h-4 w-4 mr-1" /> Reactivate
-                    </Button>
-                  )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline" className="text-destructive border-destructive/50 hover:bg-destructive/10 hover:text-destructive">
-                          <Trash2 className="h-4 w-4 mr-1" /> Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete {u.name}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This permanently removes the user and their access. This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteUser(u.id)}>
-                            Delete user
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                  ) : null}
                   </div>
                 </TableCell>
               </TableRow>
@@ -367,19 +511,21 @@ function UserManagementCard() {
   );
 }
 
-function AddUserDialog({ onAdd }: { onAdd: (u: Omit<ManagedUser, "id" | "active">) => void }) {
+function AddUserDialog({ onAdd, isSubmitting }: { onAdd: (u: { name: string; email: string; role: Role }) => Promise<boolean>; isSubmitting: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<Role>("viewer");
+  const [role, setRole] = useState<Role>("client");
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim() || !email.trim()) {
       toast.error("Name and email are required");
       return;
     }
-    onAdd({ name: name.trim(), email: email.trim(), role });
-    setName(""); setEmail(""); setRole("viewer");
+
+    const ok = await onAdd({ name: name.trim(), email: email.trim(), role });
+    if (!ok) return;
+    setName(""); setEmail(""); setRole("client");
     setOpen(false);
   };
 
@@ -407,7 +553,7 @@ function AddUserDialog({ onAdd }: { onAdd: (u: Omit<ManagedUser, "id" | "active"
             <Select value={role} onValueChange={(v) => setRole(v as Role)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
+                {ADMIN_MANAGED_ROLES.map((r) => (
                   <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
                 ))}
               </SelectContent>
@@ -416,7 +562,7 @@ function AddUserDialog({ onAdd }: { onAdd: (u: Omit<ManagedUser, "id" | "active"
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit}>Send invite</Button>
+          <Button onClick={() => void submit()} disabled={isSubmitting}>{isSubmitting ? "Inviting..." : "Send invite"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

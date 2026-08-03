@@ -51,7 +51,9 @@ const DEPARTMENT_KEYS: Department[] = ["ic", "mechanical", "chemical", "mrv", "a
 
 function getApiEndpoints(path: string) {
   const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
-  return base ? [`${base}${path}`, path] : [path];
+  // When an explicit API base URL is configured, always target it directly.
+  // Falling back to relative paths can hit the frontend dev server and produce misleading 404s.
+  return base ? [`${base}${path}`] : [path];
 }
 
 function getAuthHeaders(token?: string | null, includeJson = false) {
@@ -60,6 +62,29 @@ function getAuthHeaders(token?: string | null, includeJson = false) {
     ...(includeJson ? { "Content-Type": "application/json" } : {}),
     ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
   };
+}
+
+async function readErrorMessage(response: Response, fallback: string) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  try {
+    if (contentType.includes("application/json")) {
+      const data = await response.json() as Record<string, unknown>;
+      const message = typeof data.message === "string"
+        ? data.message
+        : typeof data.error === "string"
+          ? data.error
+          : typeof data.details === "string"
+            ? data.details
+            : null;
+      return message ? `${fallback}: ${message}` : fallback;
+    }
+
+    const text = (await response.text()).trim();
+    return text ? `${fallback}: ${text}` : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function handleUnauthorizedResponse(response: Response) {
@@ -195,13 +220,20 @@ function mapChecklist(
   };
 }
 
-function buildChecklistPayload(department: DepartmentInfo, label: string, projectId?: string | null): CreateEvidenceChecklist {
+function buildChecklistPayload(
+  department: DepartmentInfo,
+  label: string,
+  projectId?: string | null,
+  projectName?: string | null,
+): CreateEvidenceChecklist {
   const departmentId = department.id != null && /^\d+$/.test(department.id) ? Number(department.id) : null;
   const numericProjectId = projectId != null && /^\d+$/.test(projectId) ? Number(projectId) : null;
 
   return {
     departmentId: departmentId ?? 0,
+    departmentName: department.label,
     projectId: numericProjectId ?? undefined,
+    projectName: projectName?.trim() || undefined,
     item: label,
   };
 }
@@ -459,11 +491,12 @@ export async function createEvidenceChecklistApi(
   department: DepartmentInfo,
   label: string,
   projectId?: string | null,
+  projectName?: string | null,
   token?: string | null,
 ) {
   const resolvedDepartment = await resolveDepartmentForCreate(department, token);
   const hasNumericDepartmentId = resolvedDepartment.id != null && /^\d+$/.test(resolvedDepartment.id);
-  const payload = buildChecklistPayload(resolvedDepartment, label, projectId);
+  const payload = buildChecklistPayload(resolvedDepartment, label, projectId, projectName);
 
   if (!hasNumericDepartmentId) {
     throw new Error(`Unable to add checklist item because department ${department.label} is not synced from the backend.`);
@@ -486,7 +519,7 @@ export async function createEvidenceChecklistApi(
 
       if (!response.ok) {
         handleUnauthorizedResponse(response);
-        lastError = new Error(`Unable to add checklist item (${response.status})`);
+        lastError = new Error(await readErrorMessage(response, `Unable to add checklist item (${response.status})`));
         continue;
       }
 
@@ -528,7 +561,7 @@ export async function updateEvidenceChecklistApi(
 
       if (!response.ok) {
         handleUnauthorizedResponse(response);
-        lastError = new Error(`Unable to update checklist item (${response.status})`);
+        lastError = new Error(await readErrorMessage(response, `Unable to update checklist item (${response.status})`));
         continue;
       }
 

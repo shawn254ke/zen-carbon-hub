@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { useAuth } from "@/lib/auth";
 import { useProjects } from "@/lib/projects-context";
-import { Factory, Leaf, DollarSign, TrendingDown, Truck, Flame, PackageCheck, ShieldCheck } from "lucide-react";
+import { Factory, Leaf, DollarSign, TrendingDown } from "lucide-react";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/client")({
   component: ClientDashboard,
@@ -13,8 +14,8 @@ export const Route = createFileRoute("/client")({
 
 // Simple, transparent assumptions for the client-facing view
 const CLINKER_EMISSION_FACTOR_T_CO2_PER_T = 0.9; // tCO2 per tonne of clinker replaced
-const CARBON_CREDIT_PRICE_USD_PER_TCO2 = 150;    // $/tCO2e
-const CEMENT_MATERIAL_SAVING_USD_PER_T = 80;     // $/t cement offset
+const CARBON_CREDIT_PRICE_KES_PER_TCO2 = 150;    // KES/tCO2e
+const CEMENT_MATERIAL_SAVING_KES_PER_T = 80;     // KES/t cement offset
 
 function Stat({
   label,
@@ -53,25 +54,33 @@ function Stat({
   );
 }
 
-const PROCESS_STEPS = [
-  { key: "feedstock", label: "Feedstock intake", icon: Truck, desc: "Agri-residues sourced from local farms and weighed on arrival.", progress: 100 },
-  { key: "pyrolysis", label: "Pyrolysis", icon: Flame, desc: "Biomass converted to biochar in low-oxygen reactors (450–550°C).", progress: 100 },
-  { key: "qc", label: "Quality control", icon: ShieldCheck, desc: "Fixed carbon, H:C ratio and contaminants tested by accredited labs.", progress: 90 },
-  { key: "blend", label: "Cement blend", icon: PackageCheck, desc: "Biochar dosed into cement to replace a share of clinker.", progress: 70 },
-  { key: "mrv", label: "MRV & credits", icon: ShieldCheck, desc: "Monitoring, reporting & verification against the Isometric protocol.", progress: 55 },
-];
-
 function ClientDashboard() {
   const { user } = useAuth();
   const { projects, kpis } = useProjects();
 
+  const formatKes = (value: number) =>
+    new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
+      maximumFractionDigits: 0,
+    }).format(value);
+
   const removalsTco2e = kpis.totalRemovalsTco2e;
   const clinkerReplacedTonnes = removalsTco2e / CLINKER_EMISSION_FACTOR_T_CO2_PER_T;
-  const carbonRevenue = removalsTco2e * CARBON_CREDIT_PRICE_USD_PER_TCO2;
-  const materialSavings = clinkerReplacedTonnes * CEMENT_MATERIAL_SAVING_USD_PER_T;
+  const carbonRevenue = removalsTco2e * CARBON_CREDIT_PRICE_KES_PER_TCO2;
+  const materialSavings = clinkerReplacedTonnes * CEMENT_MATERIAL_SAVING_KES_PER_T;
   const totalSavings = carbonRevenue + materialSavings;
 
   const industrialProjects = projects.filter((p) => p.category === "industrial");
+
+  const trendData = [
+    { month: "Jan", removals: removalsTco2e * 0.08, savings: totalSavings * 0.09 },
+    { month: "Feb", removals: removalsTco2e * 0.12, savings: totalSavings * 0.15 },
+    { month: "Mar", removals: removalsTco2e * 0.15, savings: totalSavings * 0.22 },
+    { month: "Apr", removals: removalsTco2e * 0.18, savings: totalSavings * 0.31 },
+    { month: "May", removals: removalsTco2e * 0.21, savings: totalSavings * 0.43 },
+    { month: "Jun", removals: removalsTco2e * 0.26, savings: totalSavings * 0.58 },
+  ];
 
   return (
     <AppShell title="Client Dashboard">
@@ -108,7 +117,7 @@ function ClientDashboard() {
           />
           <Stat
             label="Estimated cost savings"
-            value={`$${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            value={formatKes(totalSavings)}
             hint="Credits + material savings"
             icon={DollarSign}
             accent="green"
@@ -119,51 +128,98 @@ function ClientDashboard() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Process overview</CardTitle>
-              <CardDescription>How your feedstock becomes verified cement reduction</CardDescription>
+              <CardDescription>Trend lines for removals and estimated savings</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {PROCESS_STEPS.map((step, i) => (
-                <div key={step.key} className="rounded-md border p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-                      <step.icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Step {i + 1}</span>
-                        <span className="text-sm font-medium">{step.label}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{step.desc}</p>
-                    </div>
-                    <Badge variant={step.progress === 100 ? "default" : "secondary"} className="shrink-0">
-                      {step.progress}%
-                    </Badge>
-                  </div>
-                  <Progress value={step.progress} className="mt-3 h-1.5" />
-                </div>
-              ))}
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">CO2 removals (tCO2e)</div>
+                <ChartContainer
+                  className="h-56 w-full"
+                  config={{
+                    removals: {
+                      label: "CO2 removed",
+                      color: "hsl(var(--primary))",
+                    },
+                  }}
+                >
+                  <LineChart data={trendData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="removals"
+                      stroke="var(--color-removals)"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "var(--color-removals)" }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Estimated savings (KES)</div>
+                <ChartContainer
+                  className="h-56 w-full"
+                  config={{
+                    savings: {
+                      label: "Estimated savings",
+                      color: "hsl(158 64% 42%)",
+                    },
+                  }}
+                >
+                  <LineChart data={trendData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => `KES ${Math.round(Number(value) / 1000)}k`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="savings"
+                      stroke="var(--color-savings)"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "var(--color-savings)" }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+
+              <div className="text-[11px] text-muted-foreground leading-relaxed">
+                Monthly points are distributed from current totals to visualize trend direction for client reporting.
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Savings breakdown</CardTitle>
-              <CardDescription>How the dollar value is calculated</CardDescription>
+              <CardDescription>How the KES value is calculated</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-md border p-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Carbon credits</div>
-                <div className="text-lg font-semibold mt-1">${carbonRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                <div className="text-xs text-muted-foreground">{removalsTco2e.toLocaleString()} tCO₂e × ${CARBON_CREDIT_PRICE_USD_PER_TCO2}/t</div>
+                <div className="text-lg font-semibold mt-1">{formatKes(carbonRevenue)}</div>
+                <div className="text-xs text-muted-foreground">{removalsTco2e.toLocaleString()} tCO₂e × KES {CARBON_CREDIT_PRICE_KES_PER_TCO2}/t</div>
               </div>
               <div className="rounded-md border p-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Material savings</div>
-                <div className="text-lg font-semibold mt-1">${materialSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                <div className="text-xs text-muted-foreground">{clinkerReplacedTonnes.toLocaleString(undefined, { maximumFractionDigits: 0 })} t clinker × ${CEMENT_MATERIAL_SAVING_USD_PER_T}/t</div>
+                <div className="text-lg font-semibold mt-1">{formatKes(materialSavings)}</div>
+                <div className="text-xs text-muted-foreground">{clinkerReplacedTonnes.toLocaleString(undefined, { maximumFractionDigits: 0 })} t clinker × KES {CEMENT_MATERIAL_SAVING_KES_PER_T}/t</div>
               </div>
               <div className="rounded-md border p-3 bg-primary/5">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Total</div>
-                <div className="text-2xl font-semibold mt-1 text-primary">${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="text-2xl font-semibold mt-1 text-primary">{formatKes(totalSavings)}</div>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Illustrative figures based on posted market prices and standard clinker emission factors. Final settlement values follow the verified MRV report.

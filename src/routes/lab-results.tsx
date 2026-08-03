@@ -4,21 +4,46 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download, FlaskConical, Paperclip } from "lucide-react";
-import { LAB_RESULTS, PROJECTS, BATCHES, type LabResult } from "@/lib/mock-data";
+import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download, FlaskConical, Paperclip, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  createLaboratoryApi,
+  deleteLaboratoryApi,
+  deleteLaboratoryDocumentApi,
+  downloadLaboratoryDocumentApi,
+  fetchLaboratoriesApi,
+  uploadLaboratoryDocumentApi,
+  type CreateLaboratoryPayload,
+} from "@/lib/laboratories-api";
+import {
+  createLaboratoryResultApi,
+  deleteLaboratoryResultApi,
+  downloadLaboratoryResultApi,
+  fetchLaboratoryResultsApi,
+  type LaboratoryResultBackendStatus,
+  type LaboratoryResultItem,
+} from "@/lib/laboratory-results-api";
 import { useEffect, useState, useMemo } from "react";
+import { toast } from "sonner";
+import { useProjects } from "@/lib/projects-context";
 
 export const Route = createFileRoute("/lab-results")({
   component: LabResultsPage,
 });
 
-type LabDoc = { id: string; name: string; type: string; expiresOn?: string; dataUrl?: string; size?: number; mime?: string };
+type LabDoc = {
+  id: string;
+  name: string;
+  type: string;
+  url?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 type Lab = {
   id: string;
   name: string;
@@ -30,65 +55,128 @@ type Lab = {
   documents: LabDoc[];
 };
 
-const SEED_LABS: Lab[] = [
-  {
-    id: "lab_1",
-    name: "SGS Nairobi",
-    contactPerson: "Grace Wanjiru",
-    email: "nairobi.lab@sgs.com",
-    phone: "+254 700 000 111",
-    address: "Industrial Area, Nairobi, Kenya",
-    notes: "Primary lab for proximate & ultimate analysis.",
-    documents: [
-      { id: "d1", name: "ISO 17025 Accreditation.pdf", type: "ISO 17025", expiresOn: "2026-08-14" },
-      { id: "d2", name: "Scope of Accreditation.pdf", type: "Scope document" },
-    ],
-  },
-  {
-    id: "lab_2",
-    name: "Eurofins",
-    contactPerson: "David Müller",
-    email: "kenya@eurofins.com",
-    phone: "+49 30 123 4567",
-    address: "Berlin, Germany",
-    documents: [
-      { id: "d3", name: "ISO 17025 Certificate.pdf", type: "ISO 17025", expiresOn: "2027-02-01" },
-    ],
-  },
-  {
-    id: "lab_3",
-    name: "In-house",
-    contactPerson: "Zen Carbon R&D",
-    email: "lab@zencarbon.io",
-    address: "R&D Lab, Nakuru",
-    documents: [],
-  },
-];
-
-const STORAGE_KEY = "zc_labs_v1";
+function mapBackendLabToUi(lab: {
+  id: string;
+  name: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  documents?: Array<{
+    id: string;
+    fileName: string;
+    url?: string;
+    documentType?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }>;
+}): Lab {
+  return {
+    id: lab.id,
+    name: lab.name,
+    contactPerson: lab.contact,
+    email: lab.email,
+    phone: lab.phone,
+    address: lab.address,
+    notes: lab.notes,
+    documents: (lab.documents ?? []).map((doc) => ({
+      id: doc.id,
+      name: doc.fileName,
+      type: doc.documentType ?? "Evidence document",
+      url: doc.url,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    })),
+  };
+}
 
 function useLabs() {
-  const [labs, setLabs] = useState<Lab[]>(SEED_LABS);
-  useEffect(() => {
-    const raw = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
-    if (raw) {
-      try { setLabs(JSON.parse(raw)); } catch { /* ignore */ }
+  const [labs, setLabs] = useState<Lab[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchLaboratoriesApi();
+      setLabs(data.map((lab) => mapBackendLabToUi(lab)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load laboratories.");
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
-  const persist = (next: Lab[]) => {
-    setLabs(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
-  return { labs, persist };
+
+  useEffect(() => {
+    refresh();
+    // Initial fetch only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const createLab = async (payload: CreateLaboratoryPayload) => {
+    await createLaboratoryApi(payload);
+    await refresh();
+  };
+
+  const removeLab = async (id: string) => {
+    await deleteLaboratoryApi(id);
+    await refresh();
+  };
+
+  const addDoc = async (lab: { id: string; name: string }, payload: { file: File; documentType: string }) => {
+    await uploadLaboratoryDocumentApi({
+      laboratoryId: lab.id,
+      laboratoryName: lab.name,
+      documentType: payload.documentType,
+      file: payload.file,
+    });
+    await refresh();
+  };
+
+  const removeDoc = async (docId: string) => {
+    await deleteLaboratoryDocumentApi(docId);
+    await refresh();
+  };
+
+  const downloadDoc = async (doc: LabDoc) => {
+    try {
+      const result = await downloadLaboratoryDocumentApi(doc.id, undefined, doc.name);
+      const url = URL.createObjectURL(result.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.fileName || doc.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download document.");
+    }
+  };
+
+  return { labs, isLoading, error, refresh, createLab, removeLab, addDoc, removeDoc, downloadDoc };
 }
 
 function LabResultsPage() {
   const { can } = useAuth();
+  const { projects } = useProjects();
   const { analyses, save, remove } = useAnalyses();
-  const { results, addResult } = useLabResults();
+  const {
+    results,
+    isLoading: isLoadingResults,
+    error: resultsError,
+    addResult,
+    removeResult,
+    downloadResult,
+    deletingId,
+    downloadingId,
+  } = useLabResults();
+  const { labs } = useLabs();
   const canEditAnalysis = can("admin:all") || can("lab:upload");
   const canUploadResult = can("admin:all") || can("lab:upload");
-  const allResults = useMemo(() => [...LAB_RESULTS, ...results], [results]);
+  const allResults = useMemo(() => results, [results]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -100,16 +188,16 @@ function LabResultsPage() {
       if (projectFilter !== "all" && l.projectId !== projectFilter) return false;
       if (statusFilter !== "all" && l.status !== statusFilter) return false;
       if (!q) return true;
-      const p = PROJECTS.find((x) => x.id === l.projectId);
+      const p = projects.find((x) => x.id === l.projectId);
       const a = analyses[l.id];
       const hay = [
-        l.testName, l.labName, l.result, l.batchId ?? "", l.sampleDate, l.reportDate ?? "",
+        l.testName, l.laboratoryName, l.result, l.batchId ?? "", l.sampleDate, l.reportDate ?? "", l.projectName ?? "",
         p?.code ?? "", p?.name ?? "",
         a?.fileName ?? "", a?.summary ?? "", a?.keyFindings ?? "", a?.recommendation ?? "", a?.author ?? "",
       ].join(" ").toLowerCase();
       return hay.includes(q);
     });
-  }, [allResults, analyses, query, projectFilter, statusFilter]);
+  }, [allResults, analyses, query, projectFilter, statusFilter, projects]);
   return (
     <AppShell title="Lab Results">
       <div className="space-y-4">
@@ -129,12 +217,12 @@ function LabResultsPage() {
           <TabsContent value="results" className="space-y-4">
             <div className="flex justify-end gap-2">
               {Object.keys(analyses).length > 0 && (
-                <Button variant="outline" onClick={() => downloadAllAnalyses(analyses)}>
+                <Button variant="outline" onClick={() => downloadAllAnalyses(analyses, allResults, projects)}>
                   <Download className="h-4 w-4 mr-1" /> Download all analyses
                 </Button>
               )}
               {allResults.length > 0 && (
-                <Button variant="outline" onClick={() => allResults.forEach(downloadLabResult)}>
+                <Button variant="outline" onClick={() => allResults.forEach((item) => void downloadResult(item))}>
                   <Download className="h-4 w-4 mr-1" /> Download all reports
                 </Button>
               )}
@@ -143,10 +231,23 @@ function LabResultsPage() {
                   <DialogTrigger asChild>
                     <Button><Upload className="h-4 w-4 mr-1" /> Upload result</Button>
                   </DialogTrigger>
-                  <UploadLabResultDialog onSubmit={(r) => { addResult(r); setUploadOpen(false); }} />
+                  <UploadLabResultDialog projects={projects} labs={labs} onSubmit={async (payload) => {
+                    await addResult(payload);
+                    setUploadOpen(false);
+                  }} />
                 </Dialog>
               )}
             </div>
+            {resultsError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {resultsError}
+              </div>
+            )}
+            {isLoadingResults && (
+              <Card>
+                <CardContent className="py-6 text-sm text-muted-foreground">Loading laboratory results…</CardContent>
+              </Card>
+            )}
             <Card>
           <CardHeader>
             <CardTitle>All results</CardTitle>
@@ -166,7 +267,7 @@ function LabResultsPage() {
                 onChange={(e) => setProjectFilter(e.target.value)}
               >
                 <option value="all">All projects</option>
-                {PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
               </select>
               <select
                 className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
@@ -199,14 +300,14 @@ function LabResultsPage() {
                   </TableRow>
                 )}
                 {filteredResults.map((l) => {
-                  const p = PROJECTS.find((x) => x.id === l.projectId);
+                  const p = projects.find((x) => x.id === l.projectId);
                   const a = analyses[l.id];
                   return (
                     <TableRow key={l.id}>
-                      <TableCell>{p?.code}</TableCell>
-                      <TableCell>{l.batchId ?? "—"}</TableCell>
+                      <TableCell>{p?.code ?? l.projectName ?? l.projectId}</TableCell>
+                      <TableCell>{l.batchName ?? l.batchId ?? "—"}</TableCell>
                       <TableCell className="font-medium">{l.testName}</TableCell>
-                      <TableCell>{l.labName}</TableCell>
+                      <TableCell>{l.laboratoryName}</TableCell>
                       <TableCell>{l.sampleDate}</TableCell>
                       <TableCell>{l.result}</TableCell>
                       <TableCell><Badge variant={l.status === "reported" ? "default" : "secondary"}>{l.status}</Badge></TableCell>
@@ -230,13 +331,18 @@ function LabResultsPage() {
                             <AnalysisDialog result={l} existing={a} canEdit onSave={(v) => save(l.id, v)} onRemove={() => remove(l.id)} />
                           )}
                           {a && (
-                            <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
+                            <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a, projects)}>
                               <Download className="h-4 w-4 mr-1" /> Analysis
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" onClick={() => downloadLabResult(l)}>
-                            <Download className="h-4 w-4 mr-1" /> Report
+                          <Button size="sm" variant="outline" disabled={downloadingId === l.id} onClick={() => void downloadResult(l)}>
+                            {downloadingId === l.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />} Report
                           </Button>
+                          {canUploadResult && (
+                            <Button size="sm" variant="ghost" disabled={deletingId === l.id} onClick={() => void removeResult(l.id)}>
+                              {deletingId === l.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />} Delete
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -248,7 +354,7 @@ function LabResultsPage() {
           </CardContent>
             </Card>
 
-            <AnalysisSummaryCard analyses={analyses} results={allResults} filteredIds={new Set(filteredResults.map((r) => r.id))} />
+            <AnalysisSummaryCard analyses={analyses} results={allResults} projects={projects} filteredIds={new Set(filteredResults.map((r) => r.id))} />
           </TabsContent>
 
           <TabsContent value="labs" className="space-y-4">
@@ -261,15 +367,11 @@ function LabResultsPage() {
 }
 
 function RegisteredLabs({ canManage }: { canManage: boolean }) {
-  const { labs, persist } = useLabs();
+  const { labs, isLoading, error, refresh, createLab, removeLab, addDoc, removeDoc, downloadDoc } = useLabs();
   const [open, setOpen] = useState(false);
-
-  const addLab = (lab: Lab) => persist([lab, ...labs]);
-  const removeLab = (id: string) => persist(labs.filter((l) => l.id !== id));
-  const addDoc = (labId: string, doc: LabDoc) =>
-    persist(labs.map((l) => (l.id === labId ? { ...l, documents: [...l.documents, doc] } : l)));
-  const removeDoc = (labId: string, docId: string) =>
-    persist(labs.map((l) => (l.id === labId ? { ...l, documents: l.documents.filter((d) => d.id !== docId) } : l)));
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
@@ -285,10 +387,28 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-1" /> Register lab</Button>
             </DialogTrigger>
-            <RegisterLabDialog onSubmit={(l) => { addLab(l); setOpen(false); }} />
+            <RegisterLabDialog onSubmit={async (payload) => {
+              await createLab(payload);
+              setOpen(false);
+            }} />
           </Dialog>
         )}
       </div>
+
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+          <Button variant="link" className="h-auto px-2 py-0 text-destructive" onClick={() => refresh()}>
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {isLoading && (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">Loading laboratories…</CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         {labs.map((lab) => (
@@ -305,7 +425,23 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
                   )}
                 </div>
                 {canManage && (
-                  <Button variant="ghost" size="icon" onClick={() => removeLab(lab.id)} aria-label="Remove lab">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={deletingId === lab.id}
+                    onClick={async () => {
+                      setDeletingId(lab.id);
+                      try {
+                        await removeLab(lab.id);
+                        toast.success("Laboratory removed");
+                      } catch (removeError) {
+                        toast.error(removeError instanceof Error ? removeError.message : "Unable to remove laboratory.");
+                      } finally {
+                        setDeletingId(null);
+                      }
+                    }}
+                    aria-label="Remove lab"
+                  >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 )}
@@ -329,25 +465,56 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
                 ) : (
                   <ul className="space-y-2">
                     {lab.documents.map((d) => (
-                      <li key={d.id} className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+                      <li
+                        key={d.id}
+                        className={`flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 transition-opacity ${downloadingDocId === d.id || deletingDocId === d.id ? "opacity-60" : "opacity-100"}`}
+                      >
                         <div className="flex items-center gap-2 min-w-0">
                           <FileText className="h-4 w-4 text-primary shrink-0" />
                           <div className="min-w-0">
                             <div className="text-sm font-medium truncate">{d.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {d.type}{d.size ? ` · ${(d.size / 1024).toFixed(1)} KB` : ""}{d.expiresOn ? ` · expires ${d.expiresOn}` : ""}
+                              {d.type}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          {d.dataUrl && (
-                            <Button variant="ghost" size="icon" onClick={() => downloadDoc(d)} aria-label="Download document">
-                              <Download className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={downloadingDocId === d.id || deletingDocId === d.id}
+                            onClick={async () => {
+                              setDownloadingDocId(d.id);
+                              try {
+                                await downloadDoc(d);
+                                toast.success("Download started");
+                              } finally {
+                                setDownloadingDocId(null);
+                              }
+                            }}
+                            aria-label="Download document"
+                          >
+                            {downloadingDocId === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                          </Button>
                           {canManage && (
-                            <Button variant="ghost" size="icon" onClick={() => removeDoc(lab.id, d.id)} aria-label="Remove document">
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={deletingDocId === d.id || downloadingDocId === d.id}
+                              onClick={async () => {
+                                setDeletingDocId(d.id);
+                                try {
+                                  await removeDoc(d.id);
+                                  toast.success("Document deleted");
+                                } catch (removeError) {
+                                  toast.error(removeError instanceof Error ? removeError.message : "Unable to delete document.");
+                                } finally {
+                                  setDeletingDocId(null);
+                                }
+                              }}
+                              aria-label="Remove document"
+                            >
+                              {deletingDocId === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-destructive" /> : <Trash2 className="h-3.5 w-3.5 text-destructive" />}
                             </Button>
                           )}
                         </div>
@@ -356,7 +523,7 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
                   </ul>
                 )}
                 {canManage && (
-                  <AddDocForm onAdd={(doc) => addDoc(lab.id, doc)} />
+                  <AddDocForm onAdd={(payload) => addDoc({ id: lab.id, name: lab.name }, payload)} />
                 )}
               </div>
             </CardContent>
@@ -367,10 +534,12 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
   );
 }
 
-function RegisterLabDialog({ onSubmit }: { onSubmit: (lab: Lab) => void }) {
+function RegisterLabDialog({ onSubmit }: { onSubmit: (payload: CreateLaboratoryPayload) => Promise<void> }) {
   const [form, setForm] = useState({
     name: "", contactPerson: "", email: "", phone: "", address: "", notes: "",
   });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm({ ...form, [k]: e.target.value });
 
@@ -408,23 +577,30 @@ function RegisterLabDialog({ onSubmit }: { onSubmit: (lab: Lab) => void }) {
           <Textarea id="lab-notes" value={form.notes} onChange={update("notes")} rows={2} />
         </div>
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button
-          disabled={!form.name.trim()}
-          onClick={() =>
-            onSubmit({
-              id: `lab_${Date.now()}`,
+          disabled={!form.name.trim() || busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await onSubmit({
               name: form.name.trim(),
-              contactPerson: form.contactPerson || undefined,
+              contact: form.contactPerson || undefined,
               email: form.email || undefined,
               phone: form.phone || undefined,
               address: form.address || undefined,
               notes: form.notes || undefined,
-              documents: [],
-            })
-          }
+              });
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Unable to register laboratory.");
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
-          Save lab
+          {busy ? "Saving…" : "Save lab"}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -440,16 +616,16 @@ const DOC_TYPES = [
   "Other",
 ];
 
-function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
+function AddDocForm({ onAdd }: { onAdd: (payload: { file: File; documentType: string }) => Promise<void> }) {
   const [type, setType] = useState(DOC_TYPES[0]);
-  const [expires, setExpires] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputId = useMemo(() => `doc-file-${Math.random().toString(36).slice(2, 8)}`, []);
 
   return (
-    <div className="mt-3 rounded-md border border-dashed p-3 space-y-2">
-      <div className="grid gap-2 sm:grid-cols-3">
+    <div className={`mt-3 rounded-md border border-dashed p-3 space-y-2 transition-all ${busy ? "animate-pulse" : ""}`}>
+      <div className="grid gap-2 sm:grid-cols-2">
         <Input id={inputId} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         <select
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
@@ -458,11 +634,11 @@ function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
         >
           {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <Input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
       </div>
       {file && (
         <p className="text-xs text-muted-foreground">Selected: {file.name} · {(file.size / 1024).toFixed(1)} KB</p>
       )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -471,76 +647,29 @@ function AddDocForm({ onAdd }: { onAdd: (doc: LabDoc) => void }) {
           onClick={async () => {
             if (!file) return;
             setBusy(true);
+            setError(null);
             try {
-              const dataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(String(reader.result));
-                reader.onerror = () => reject(reader.error);
-                reader.readAsDataURL(file);
-              });
-              onAdd({
-                id: `d_${Date.now()}`,
-                name: file.name,
-                type,
-                expiresOn: expires || undefined,
-                dataUrl,
-                size: file.size,
-                mime: file.type || undefined,
-              });
-              setFile(null); setExpires("");
+              await onAdd({ file, documentType: type });
+              toast.success("Document uploaded");
+              setFile(null);
               const el = document.getElementById(inputId) as HTMLInputElement | null;
               if (el) el.value = "";
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Unable to upload document.");
             } finally {
               setBusy(false);
             }
           }}
         >
-          <Upload className="h-3.5 w-3.5 mr-1" /> {busy ? "Uploading…" : "Upload document"}
+          {busy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />} {busy ? "Uploading…" : "Upload document"}
         </Button>
       </div>
     </div>
   );
 }
 
-function downloadDoc(d: LabDoc) {
-  if (!d.dataUrl) return;
-  const a = document.createElement("a");
-  a.href = d.dataUrl;
-  a.download = d.name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-function downloadLabResult(l: LabResult) {
-  const project = PROJECTS.find((p) => p.id === l.projectId);
-  const content =
-    `Zen Carbon — Laboratory Result (mock)\n` +
-    `====================================\n\n` +
-    `Test:          ${l.testName}\n` +
-    `Project:       ${project?.code ?? l.projectId} — ${project?.name ?? ""}\n` +
-    `Batch:         ${l.batchId ?? "—"}\n` +
-    `Lab:           ${l.labName}\n` +
-    `Sample date:   ${l.sampleDate}\n` +
-    `Report date:   ${l.reportDate || "—"}\n` +
-    `Result:        ${l.result}\n` +
-    `Status:        ${l.status}\n` +
-    `Reference id:  ${l.id}\n\n` +
-    `This is a placeholder for the original lab report, provided so\n` +
-    `reviewers can counter-check lab results before verification.\n`;
-  const blob = new Blob([content], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${l.testName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${l.id}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function downloadAnalysis(l: LabResult, a: Analysis) {
-  const project = PROJECTS.find((p) => p.id === l.projectId);
+function downloadAnalysis(l: LaboratoryResultItem, a: Analysis, projects: Array<{ id: string; code: string; name: string }>) {
+  const project = projects.find((p) => p.id === l.projectId);
   const content =
     `Zen Carbon — Lab Result Analysis (mock)\n` +
     `=====================================\n\n` +
@@ -548,7 +677,7 @@ function downloadAnalysis(l: LabResult, a: Analysis) {
     `Test:          ${l.testName}\n` +
     `Project:       ${project?.code ?? l.projectId} — ${project?.name ?? ""}\n` +
     `Batch:         ${l.batchId ?? "—"}\n` +
-    `Lab:           ${l.labName}\n` +
+    `Lab:           ${l.laboratoryName}\n` +
     `Result:        ${l.result}\n` +
     `Status:        ${l.status}\n` +
     `Author:        ${a.author}\n` +
@@ -569,10 +698,14 @@ function downloadAnalysis(l: LabResult, a: Analysis) {
   URL.revokeObjectURL(url);
 }
 
-function downloadAllAnalyses(analyses: Record<string, Analysis>) {
-  Object.entries(analyses).forEach(([id, a]) => {
-    const l = LAB_RESULTS.find((x) => x.id === id);
-    if (l) downloadAnalysis(l, a);
+function downloadAllAnalyses(
+  analyses: Record<string, Analysis>,
+  results: LaboratoryResultItem[],
+  projects: Array<{ id: string; code: string; name: string }>,
+) {
+  Object.entries(analyses).forEach(([id, analysis]) => {
+    const result = results.find((item) => item.id === id);
+    if (result) downloadAnalysis(result, analysis, projects);
   });
 }
 
@@ -610,42 +743,140 @@ function useAnalyses() {
   };
 }
 
-const UPLOADED_RESULTS_KEY = "zc_uploaded_lab_results_v1";
-
 function useLabResults() {
-  const [results, setResults] = useState<LabResult[]>([]);
-  useEffect(() => {
-    const raw = typeof window !== "undefined" ? window.localStorage.getItem(UPLOADED_RESULTS_KEY) : null;
-    if (raw) {
-      try { setResults(JSON.parse(raw)); } catch { /* ignore */ }
+  const [results, setResults] = useState<LaboratoryResultItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchLaboratoryResultsApi();
+      setResults(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load laboratory results.");
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
-  const persist = (next: LabResult[]) => {
-    setResults(next);
-    window.localStorage.setItem(UPLOADED_RESULTS_KEY, JSON.stringify(next));
   };
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const addResult = async (payload: UploadLaboratoryResultPayload) => {
+    await createLaboratoryResultApi(payload);
+    toast.success("Lab result uploaded");
+    await refresh();
+  };
+
+  const removeResult = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteLaboratoryResultApi(id);
+      toast.success("Lab result deleted");
+      await refresh();
+    } catch (removeError) {
+      toast.error(removeError instanceof Error ? removeError.message : "Unable to delete lab result.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const downloadResult = async (item: LaboratoryResultItem) => {
+    setDownloadingId(item.id);
+    try {
+      const result = await downloadLaboratoryResultApi(item.id, item.fileName || `${item.testName}-${item.id}`);
+      const url = URL.createObjectURL(result.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+      toast.success("Download started");
+    } catch (downloadError) {
+      toast.error(downloadError instanceof Error ? downloadError.message : "Unable to download lab result.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return {
     results,
-    addResult: (r: LabResult) => persist([r, ...results]),
+    isLoading,
+    error,
+    deletingId,
+    downloadingId,
+    addResult,
+    removeResult,
+    downloadResult,
   };
 }
 
-function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void }) {
+type UploadLaboratoryResultPayload = {
+  projectId: string;
+  projectName?: string;
+  batchId?: string;
+  laboratoryId: string;
+  laboratoryName?: string;
+  test: string;
+  results: string;
+  fileName: string;
+  status: LaboratoryResultBackendStatus;
+  sampleDate: string;
+  reportDate?: string;
+  uploadedById: string;
+  uploadedByName?: string;
+  file: File;
+};
+
+function UploadLabResultDialog({
+  projects,
+  labs,
+  onSubmit,
+}: {
+  projects: Array<{ id: string; code: string; name: string; batch?: Array<{ id: string; code: string }> }>;
+  labs: Array<{ id: string; name: string }>;
+  onSubmit: (payload: UploadLaboratoryResultPayload) => Promise<void>;
+}) {
   const { user } = useAuth();
   const [testName, setTestName] = useState("");
-  const [projectId, setProjectId] = useState(PROJECTS[0]?.id ?? "");
+  const [projectId, setProjectId] = useState("");
+  const [projectName, setProjectName] = useState("");
   const [batchId, setBatchId] = useState("");
-  const [labName, setLabName] = useState("");
+  const [labId, setLabId] = useState(labs[0]?.id ?? "");
   const [sampleDate, setSampleDate] = useState("");
   const [reportDate, setReportDate] = useState("");
   const [result, setResult] = useState("");
-  const [status, setStatus] = useState<LabResult["status"]>("reported");
+  const [status, setStatus] = useState<LaboratoryResultBackendStatus>("VERIFIED");
+  const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const selectedProject = PROJECTS.find((p) => p.id === projectId);
-  const batches = selectedProject ? BATCHES.filter((b) => b.projectId === projectId) : [];
+  useEffect(() => {
+    if (!projectId && projects.length > 0) {
+      setProjectId(projects[0].id);
+      setProjectName(projects[0].name);
+    }
+  }, [projectId, projects]);
 
-  const valid = testName.trim() && labName.trim() && sampleDate.trim() && result.trim() && fileName.trim();
+  useEffect(() => {
+    if (!labId && labs.length > 0) {
+      setLabId(labs[0].id);
+    }
+  }, [labId, labs]);
+
+  const selectedProject = projects.find((p) => p.id === projectId);
+  const batches = selectedProject?.batch ?? [];
+  const selectedLab = labs.find((lab) => lab.id === labId);
+
+  const valid = testName.trim() && projectId.trim() && labId.trim() && sampleDate.trim() && result.trim() && fileName.trim() && !!file;
 
   return (
     <DialogContent className="max-w-lg">
@@ -665,9 +896,15 @@ function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void 
               id="lr-project"
               className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
               value={projectId}
-              onChange={(e) => { setProjectId(e.target.value); setBatchId(""); }}
+              onChange={(e) => {
+                setProjectId(e.target.value);
+                const project = projects.find((item) => item.id === e.target.value);
+                setProjectName(project?.name ?? "");
+                setBatchId("");
+              }}
             >
-              {PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+              {projects.length === 0 && <option value="">No projects available</option>}
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
@@ -679,13 +916,21 @@ function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void 
               onChange={(e) => setBatchId(e.target.value)}
             >
               <option value="">—</option>
-              {batches.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
+              {batches.map((batch) => <option key={batch.id} value={batch.id}>{batch.code}</option>)}
             </select>
           </div>
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="lr-lab">Laboratory</Label>
-          <Input id="lr-lab" value={labName} onChange={(e) => setLabName(e.target.value)} placeholder="e.g. SGS Nairobi" />
+          <select
+            id="lr-lab"
+            className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+            value={labId}
+            onChange={(e) => setLabId(e.target.value)}
+          >
+            {labs.length === 0 && <option value="">No registered laboratories found</option>}
+            {labs.map((lab) => <option key={lab.id} value={lab.id}>{lab.name}</option>)}
+          </select>
         </div>
         <div className="grid gap-1.5 grid-cols-2">
           <div className="space-y-1.5">
@@ -708,10 +953,13 @@ function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void 
               id="lr-status"
               className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
               value={status}
-              onChange={(e) => setStatus(e.target.value as LabResult["status"])}
+              onChange={(e) => setStatus(e.target.value as LaboratoryResultBackendStatus)}
             >
-              <option value="reported">Reported</option>
-              <option value="in_progress">In progress</option>
+              <option value="PENDING">PENDING</option>
+              <option value="RECEIVED">RECEIVED</option>
+              <option value="VERIFIED">VERIFIED</option>
+              <option value="REJECTED">REJECTED</option>
+              
             </select>
           </div>
           <div className="space-y-1.5">
@@ -719,30 +967,54 @@ function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void 
             <Input
               id="lr-file"
               type="file"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) setFileName(f.name); }}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0] ?? null;
+                setFile(selectedFile);
+                setFileName(selectedFile?.name ?? "");
+              }}
             />
           </div>
         </div>
         {fileName && <p className="text-xs text-muted-foreground">Selected report: {fileName}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
       <DialogFooter>
         <Button
-          disabled={!valid}
-          onClick={() => {
-            onSubmit({
-              id: `lr_${Date.now()}`,
-              projectId,
-              batchId: batchId || undefined,
-              testName: testName.trim(),
-              labName: labName.trim(),
-              sampleDate,
-              reportDate,
-              result: result.trim(),
-              status,
-            });
+          disabled={!valid || busy}
+          onClick={async () => {
+            if (!file) return;
+            if (!/^\d+$/.test(user.id)) {
+              setError("Current user id is not numeric. Please re-login with a synced backend account.");
+              return;
+            }
+
+            setBusy(true);
+            setError(null);
+            try {
+              await onSubmit({
+                projectId,
+                projectName: projectName || selectedProject?.name || undefined,
+                batchId: batchId || undefined,
+                laboratoryId: labId,
+                laboratoryName: selectedLab?.name,
+                test: testName.trim(),
+                results: result.trim(),
+                fileName,
+                status,
+                sampleDate,
+                reportDate: reportDate || undefined,
+                uploadedById: user.id,
+                uploadedByName: user.name,
+                file,
+              });
+            } catch (submitError) {
+              setError(submitError instanceof Error ? submitError.message : "Unable to upload laboratory result.");
+            } finally {
+              setBusy(false);
+            }
           }}
         >
-          <Upload className="h-4 w-4 mr-1" /> Save result
+          {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />} Save result
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -752,7 +1024,7 @@ function UploadLabResultDialog({ onSubmit }: { onSubmit: (r: LabResult) => void 
 function AnalysisDialog({
   result, existing, onSave, onRemove, canEdit,
 }: {
-  result: LabResult;
+  result: LaboratoryResultItem;
   existing?: Analysis;
   onSave: (a: Analysis) => void;
   onRemove: () => void;
@@ -843,7 +1115,17 @@ function AnalysisDialog({
   );
 }
 
-function AnalysisSummaryCard({ analyses, results, filteredIds }: { analyses: Record<string, Analysis>; results: LabResult[]; filteredIds?: Set<string> }) {
+function AnalysisSummaryCard({
+  analyses,
+  results,
+  projects,
+  filteredIds,
+}: {
+  analyses: Record<string, Analysis>;
+  results: LaboratoryResultItem[];
+  projects: Array<{ id: string; code: string; name: string }>;
+  filteredIds?: Set<string>;
+}) {
   const entries = Object.entries(analyses).filter(([id]) => !filteredIds || filteredIds.has(id));
   const total = results.length;
   const withAnalysis = Object.keys(analyses).length;
@@ -863,7 +1145,7 @@ function AnalysisSummaryCard({ analyses, results, filteredIds }: { analyses: Rec
             {entries.map(([id, a]) => {
               const l = results.find((x) => x.id === id);
               if (!l) return null;
-              const p = PROJECTS.find((x) => x.id === l.projectId);
+              const p = projects.find((x) => x.id === l.projectId);
               return (
                 <li key={id} className="rounded-md border p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -874,7 +1156,7 @@ function AnalysisSummaryCard({ analyses, results, filteredIds }: { analyses: Rec
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a)}>
+                      <Button size="sm" variant="outline" onClick={() => downloadAnalysis(l, a, projects)}>
                         <Download className="h-3.5 w-3.5 mr-1" /> Analysis
                       </Button>
                       <Badge variant="outline">{l.result}</Badge>

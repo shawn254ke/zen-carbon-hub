@@ -25,19 +25,14 @@ export interface EvidenceChecklist {
 }
 
 export interface CreateEvidenceChecklist {
-
-    
-
     // Department
     departmentId: number;
+    departmentName?: string;
 
     // Project
     projectId?: number;
+    projectName?: string;
 
     // Checklist Item
     item: string;
-
-    
-
-    
 }

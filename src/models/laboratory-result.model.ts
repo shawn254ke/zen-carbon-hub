@@ -1,8 +1,10 @@
 
 export enum LaboratoryResultStatus {
     PENDING = "PENDING",
+    RECEIVED = "RECEIVED",
+    VERIFIED = "VERIFIED",
+    REJECTED = "REJECTED",
     COMPLETED = "COMPLETED",
-    REJECTED = "REJECTED"
 }
 export interface LaboratoryResult {
 

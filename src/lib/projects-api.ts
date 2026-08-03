@@ -304,7 +304,11 @@ function toNumber(value: string | number | null | undefined): number {
 
 function normalizeLabStatus(rawStatus: string | null | undefined): LabResult["status"] {
   const normalized = (rawStatus ?? "").trim().toLowerCase();
-  return normalized === "reported" || normalized === "complete" ? "reported" : "in_progress";
+  if (normalized === "reported" || normalized === "complete" || normalized === "completed") {
+    return "reported";
+  }
+
+  return "in_progress";
 }
 
 function normalizeBatchStatus(rawStatus: string | null | undefined): Batch["status"] {

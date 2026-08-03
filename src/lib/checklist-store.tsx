@@ -165,7 +165,15 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
     if (entries[dept].some((entry) => entry.label === trimmed && (entry.projectId ?? null) === (projectId ?? null))) return;
 
     try {
-      const created = await createEvidenceChecklistApi(getDepartmentInfo(dept), trimmed, projectId);
+      const selectedProjectName = projectId
+        ? projects.find((project) => project.id === projectId)?.name ?? null
+        : null;
+      const created = await createEvidenceChecklistApi(
+        getDepartmentInfo(dept),
+        trimmed,
+        projectId,
+        selectedProjectName,
+      );
       setEntries((prev) => ({
         ...prev,
         [dept]: [...prev[dept], created],
@@ -174,7 +182,7 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
       toast.error(mutationError instanceof Error ? mutationError.message : "Unable to add checklist item.");
       throw mutationError;
     }
-  }, [entries, getDepartmentInfo]);
+  }, [entries, getDepartmentInfo, projects]);
 
   const removeItem = useCallback(async (dept: Department, item: string, projectId?: string) => {
     const existing = entries[dept].find((entry) => entry.label === item && (entry.projectId ?? null) === (projectId ?? null));
