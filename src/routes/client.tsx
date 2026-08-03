@@ -97,7 +97,7 @@ function ClientDashboard() {
           <Stat
             label="CO₂ removed"
             value={`${removalsTco2e.toLocaleString()} tCO₂e`}
-            hint="Durable biochar carbon storage"
+            hint="Durable carbon storage"
             icon={Leaf}
             accent="green"
           />
