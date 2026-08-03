@@ -231,14 +231,14 @@ function ClientDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Contributing projects</CardTitle>
-            <CardDescription>Facilities delivering your biochar supply</CardDescription>
+            <CardDescription>Facilities delivering your Cement Savings</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {industrialProjects.map((p) => (
               <div key={p.id} className="flex items-center justify-between rounded-md border p-3">
                 <div>
                   <div className="text-sm font-medium">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">{p.code} · {p.location}</div>
+                  <div className="text-xs text-muted- foreground">{p.code} · {p.location}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-medium">{(p.emissionsAvoidedTco2e ?? 0).toLocaleString()} tCO₂e</div>
