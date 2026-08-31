@@ -434,16 +434,18 @@ function mapEmissions(items: BackendEmissionDto[] | null | undefined, projectId:
 
 function mapBatches(items: BackendBatchDto[] | null | undefined, projectId: string): Batch[] {
   if (!items) return [];
-  return items.map((item, index) => ({
-    id: String(item.id ?? `b_${projectId}_${index}`),
-    projectId: String(item.projectId ?? projectId),
-    code: (item.batchNumber ?? `B-${index + 1}`).trim(),
-    runDate: (item.timestamp ?? "—").slice(0, 10),
-    feedstock: "—",
-    massKg: 0,
-    yieldKg: 0,
-    temperatureC: 0,
-    status: normalizeBatchStatus(item.status),
+  return items.map((item, index) => {
+    const batchNumber = String(item.batchNumber ?? "").trim();
+    return {
+      id: String(item.id ?? `b_${projectId}_${index}`),
+      projectId: String(item.projectId ?? projectId),
+      code: batchNumber || `B-${index + 1}`,
+      runDate: (item.timestamp ?? "—").slice(0, 10),
+      feedstock: "—",
+      massKg: 0,
+      yieldKg: 0,
+      temperatureC: 0,
+      status: normalizeBatchStatus(item.status),
     timestamp: item.timestamp ?? undefined,
     energy: item.energy ?? undefined,
     cement: item.cement != null ? toNumber(item.cement) : undefined,
@@ -457,11 +459,12 @@ function mapBatches(items: BackendBatchDto[] | null | undefined, projectId: stri
     waterUsed: item.waterUsed != null ? toNumber(item.waterUsed) : undefined,
     initialTemp: item.initialTemp != null ? toNumber(item.initialTemp) : undefined,
     finalTemp: item.finalTemp != null ? toNumber(item.finalTemp) : undefined,
-    initialPressure: item.initialPressure != null ? toNumber(item.initialPressure) : undefined,
-    finalPressure: item.finalPressure != null ? toNumber(item.finalPressure) : undefined,
-    initialFlowRate: item.initialFlowRate != null ? toNumber(item.initialFlowRate) : undefined,
-    finalFlowRate: item.finalFlowRate != null ? toNumber(item.finalFlowRate) : undefined,
-  }));
+      initialPressure: item.initialPressure != null ? toNumber(item.initialPressure) : undefined,
+      finalPressure: item.finalPressure != null ? toNumber(item.finalPressure) : undefined,
+      initialFlowRate: item.initialFlowRate != null ? toNumber(item.initialFlowRate) : undefined,
+      finalFlowRate: item.finalFlowRate != null ? toNumber(item.finalFlowRate) : undefined,
+    };
+  });
 }
 
 function mapLabAnalyses(items: BackendLabAnalysisDto[] | null | undefined): LaboratoryAnalysis[] {

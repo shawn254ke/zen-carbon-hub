@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Download, FlaskConical } from "lucide-react";
+import { ArrowLeft, Plus, Download, FlaskConical, Loader2 } from "lucide-react";
 import { getStoredSession, useAuth } from "@/lib/auth";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { getDefaultDepartments } from "@/lib/evidence-config-api";
 import { fetchProjectsApi, getProjectsCache, type Batch, type EvidenceItem, type LabResult, type LaboratoryAnalysis, type Project } from "@/lib/projects-api";
+import { fetchBatchesApi, type BatchDataSyncEntry, type BatchSyncItem } from "@/lib/batches-api";
 
 const DEPARTMENTS = getDefaultDepartments();
 
@@ -213,6 +214,8 @@ function mapProjectAnalyses(project: Project): Record<string, Analysis> {
 function ProjectDetail() {
   const project = Route.useLoaderData();
   const { can, user, token } = useAuth();
+  const [downloadingEvidenceIds, setDownloadingEvidenceIds] = useState<Record<string, boolean>>({});
+  const [downloadingEvidenceDeptKeys, setDownloadingEvidenceDeptKeys] = useState<Record<string, boolean>>({});
   const { analyses: storedAnalyses } = useAnalyses();
   const analyses = useMemo(
     () => ({
@@ -269,23 +272,101 @@ function ProjectDetail() {
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [entryDialogBatch, setEntryDialogBatch] = useState<string | null>(null);
+  const [syncedBatches, setSyncedBatches] = useState<BatchSyncItem[]>([]);
+  const [batchSyncError, setBatchSyncError] = useState<string | null>(null);
 
-  const apiBatches = project.batch ?? [];
-  const projectExtras = extraBatches.filter((b) => b.projectId === project.id);
-  const allBatches = useMemo(() => [
-    ...projectExtras.map((b) => ({
-      id: b.id, code: b.code, runDate: b.runDate,
-      finesKg: b.finesKg, coarseKg: b.coarseKg, biocharKg: b.biocharKg,
-      cementKg: b.cementKg, waterKg: b.waterKg, admixtureKg: b.admixtureKg,
-      status: b.status, createdBy: b.createdBy, extra: b as ExtraBatch | undefined, apiBatch: undefined as Batch | undefined,
-    })),
-    ...apiBatches.map((b) => ({
-      id: b.id, code: b.code, runDate: b.runDate,
-      finesKg: b.fines, coarseKg: b.coarse, biocharKg: undefined,
-      cementKg: b.cement, waterKg: b.waterUsed, admixtureKg: b.addMixture,
-      status: b.status, createdBy: "—", extra: undefined as ExtraBatch | undefined, apiBatch: b,
-    })),
-  ], [apiBatches, projectExtras]);
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetchBatchesApi(token)
+      .then((batches) => {
+        if (!cancelled) {
+          setSyncedBatches(batches);
+          setBatchSyncError(null);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSyncedBatches([]);
+          setBatchSyncError(error instanceof Error ? error.message : "Unable to load synchronized batches.");
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const apiBatches = (project.batch ?? []).filter((b) => (b.code ?? "").trim().length > 0);
+  const projectExtras = extraBatches.filter((b) => b.projectId === project.id && (b.code ?? "").trim().length > 0);
+  const normalizeBatchCode = (value: string | undefined | null) => (value ?? "").trim().toLowerCase();
+  const allBatches = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: Array<{
+      id: string;
+      code: string;
+      runDate: string;
+      finesKg?: number;
+      coarseKg?: number;
+      biocharKg?: number;
+      cementKg?: number;
+      waterKg?: number;
+      admixtureKg?: number;
+      status: "complete" | "in_progress" | "failed";
+      createdBy: string;
+      extra?: ExtraBatch;
+      apiBatch?: Batch;
+    }> = [];
+
+    const pushDistinct = (batch: { id: string; code: string; runDate: string; finesKg?: number; coarseKg?: number; biocharKg?: number; cementKg?: number; waterKg?: number; admixtureKg?: number; status: "complete" | "in_progress" | "failed"; createdBy: string; extra?: ExtraBatch; apiBatch?: Batch; }) => {
+      const key = normalizeBatchCode(batch.code);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      merged.push(batch);
+    };
+
+    projectExtras.forEach((b) => {
+      pushDistinct({
+        id: b.id, code: b.code, runDate: b.runDate,
+        finesKg: b.finesKg, coarseKg: b.coarseKg, biocharKg: b.biocharKg,
+        cementKg: b.cementKg, waterKg: b.waterKg, admixtureKg: b.admixtureKg,
+        status: b.status, createdBy: b.createdBy, extra: b, apiBatch: undefined,
+      });
+    });
+
+    apiBatches.forEach((b) => {
+      pushDistinct({
+        id: b.id, code: b.code, runDate: b.runDate,
+        finesKg: b.fines, coarseKg: b.coarse, biocharKg: undefined,
+        cementKg: b.cement, waterKg: b.waterUsed, admixtureKg: b.addMixture,
+        status: b.status, createdBy: "—", extra: undefined, apiBatch: b,
+      });
+    });
+
+    syncedBatches
+      .filter((syncedBatch) => {
+        const code = (syncedBatch.batchCode ?? "").trim();
+        if (!code) return false;
+        return !apiBatches.some((apiBatch) => normalizeBatchCode(apiBatch.code) === normalizeBatchCode(code));
+      })
+      .forEach((syncedBatch) => {
+        pushDistinct({
+          id: `sync-${syncedBatch.batchCode}`,
+          code: syncedBatch.batchCode,
+          runDate: syncedBatch.startTime ? syncedBatch.startTime.slice(0, 10) : "—",
+          finesKg: undefined,
+          coarseKg: undefined,
+          biocharKg: undefined,
+          cementKg: undefined,
+          waterKg: undefined,
+          admixtureKg: undefined,
+          status: "in_progress",
+          createdBy: "—",
+          extra: undefined,
+          apiBatch: undefined,
+        });
+      });
+
+    return merged;
+  }, [apiBatches, projectExtras, syncedBatches]);
   const [addOpen, setAddOpen] = useState(false);
   const labs = project.labResults ?? [];
   const evidence = project.evidences ?? [];
@@ -458,6 +539,11 @@ function ProjectDetail() {
                   )}
                 </CardHeader>
                 <CardContent>
+                  {batchSyncError && (
+                    <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {batchSyncError}
+                    </div>
+                  )}
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -477,6 +563,7 @@ function ProjectDetail() {
                     <TableBody>
                       {allBatches.map((b) => {
                         const isOpen = !!expanded[b.id];
+                        const syncedBatch = syncedBatches.find((item) => item.batchCode.trim().toLowerCase() === b.code.trim().toLowerCase());
                         const entries = batchData[b.id] ?? (b.apiBatch ? mapApiBatchToEntries(b.apiBatch, pathway) : []);
                         return (
                           <Fragment key={b.id}>
@@ -505,12 +592,16 @@ function ProjectDetail() {
                             {isOpen && (
                               <TableRow className="bg-muted/30 hover:bg-muted/30">
                                 <TableCell colSpan={11} className="p-4">
-                                  <BatchDataPanel
-                                    pathway={pathway}
-                                    entries={entries}
-                                    canEdit={can("projects:edit")}
-                                    onAdd={() => setEntryDialogBatch(b.id)}
-                                  />
+                                  {syncedBatch ? (
+                                    <SyncedBatchDataPanel batch={syncedBatch} />
+                                  ) : (
+                                    <BatchDataPanel
+                                      pathway={pathway}
+                                      entries={entries}
+                                      canEdit={can("projects:edit")}
+                                      onAdd={() => setEntryDialogBatch(b.id)}
+                                    />
+                                  )}
                                 </TableCell>
                               </TableRow>
                             )}
@@ -549,8 +640,25 @@ function ProjectDetail() {
                       <CardDescription>{items.length} document(s)</CardDescription>
                     </div>
                     {items.length > 0 && (
-                      <Button variant="outline" size="sm" onClick={() => { void downloadAllEvidence(items); }}>
-                        <Download className="h-4 w-4 mr-1" /> Download all
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!!downloadingEvidenceDeptKeys[d.key]}
+                        onClick={async () => {
+                          setDownloadingEvidenceDeptKeys((state) => ({ ...state, [d.key]: true }));
+                          try {
+                            await downloadAllEvidence(items);
+                          } finally {
+                            setDownloadingEvidenceDeptKeys((state) => ({ ...state, [d.key]: false }));
+                          }
+                        }}
+                      >
+                        {downloadingEvidenceDeptKeys[d.key] ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4 mr-1" />
+                        )}
+                        {downloadingEvidenceDeptKeys[d.key] ? "Downloading..." : "Download all"}
                       </Button>
                     )}
                   </CardHeader>
@@ -580,8 +688,25 @@ function ProjectDetail() {
                                 <Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button size="sm" variant="outline" onClick={() => { void downloadEvidence(e); }}>
-                                  <Download className="h-4 w-4 mr-1" /> Download
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!!downloadingEvidenceIds[e.id]}
+                                  onClick={async () => {
+                                    setDownloadingEvidenceIds((state) => ({ ...state, [e.id]: true }));
+                                    try {
+                                      await downloadEvidence(e);
+                                    } finally {
+                                      setDownloadingEvidenceIds((state) => ({ ...state, [e.id]: false }));
+                                    }
+                                  }}
+                                >
+                                  {downloadingEvidenceIds[e.id] ? (
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4 mr-1" />
+                                  )}
+                                  {downloadingEvidenceIds[e.id] ? "Downloading..." : "Download"}
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -971,6 +1096,59 @@ function BatchDataPanel({
             </TableBody>
           </Table>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SyncedBatchDataPanel({ batch }: { batch: BatchSyncItem }) {
+  const columns: Array<{ key: keyof BatchDataSyncEntry; label: string }> = [
+    { key: "totalWaterVolume", label: "Water volume" },
+    { key: "influentPressurePT101", label: "Influent pressure PT101" },
+    { key: "influentFlowRateFT101", label: "Influent flow FT101" },
+    { key: "influentPhAIT101", label: "Influent pH AIT101" },
+    { key: "influentDissolvedCo2AT101", label: "Influent dCO2 AT101" },
+    { key: "co2MassFlowFIT101", label: "CO2 mass flow FIT101" },
+    { key: "effluentFlowFT102", label: "Effluent flow FT102" },
+    { key: "effluentFlowFT103", label: "Effluent flow FT103" },
+    { key: "effluentDissolvedCo2AT102", label: "Effluent dCO2 AT102" },
+    { key: "effluentPhAIT103", label: "Effluent pH AIT103" },
+    { key: "injectedCo2", label: "Injected CO2" },
+    { key: "dissolvedCo2", label: "Dissolved CO2" },
+    { key: "systemRuntime", label: "Runtime" },
+    { key: "timestamp", label: "Timestamp" },
+    { key: "systemStatus", label: "System status" },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+        <span>CO2 injected: {batch.co2Injected || "-"}</span>
+        <span>Started: {batch.startTime || "-"}</span>
+        <span>Ended: {batch.endTime || "-"}</span>
+      </div>
+      <div className="overflow-x-auto rounded-md border bg-background">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((column) => <TableHead key={column.key} className="whitespace-nowrap">{column.label}</TableHead>)}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {batch.batchData.length === 0 && (
+              <TableRow><TableCell colSpan={columns.length} className="text-center text-xs text-muted-foreground">No synchronized entries yet.</TableCell></TableRow>
+            )}
+            {batch.batchData.map((entry, index) => (
+              <TableRow key={`${entry.timestamp}-${index}`}>
+                {columns.map((column) => (
+                  <TableCell key={column.key} className="whitespace-nowrap">
+                    {column.key === "systemStatus" ? (entry.systemStatus ? "Running" : "Stopped") : entry[column.key]}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

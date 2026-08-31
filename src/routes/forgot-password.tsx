@@ -36,22 +36,47 @@ function ForgotPasswordPage() {
 
     setIsSubmitting(true);
     setError(null);
+    setSubmitted(false);
 
     const normalizedEmail = email.trim();
 
     try {
       const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
-      const endpoint = base ? `${base}/auth/forgot-password` : "/auth/forgot-password";
+      const endpoints = [
+        base ? `${base}/reset-password` : "/reset-password",
+        base ? `${base}/api/users/reset-password` : "/auth/reset-password",
+      ];
 
-      await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail }),
-      }).catch(() => null);
+      let sent = false;
+      let lastError = "Unable to send reset instructions right now. Please try again.";
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: normalizedEmail }),
+          });
+
+          if (response.ok) {
+            sent = true;
+            break;
+          }
+
+          const apiMessage = await response.text().catch(() => "");
+          lastError = apiMessage || `Request failed (${response.status})`;
+        } catch {
+          // Try next endpoint candidate.
+        }
+      }
+
+      if (!sent) {
+        throw new Error(lastError);
+      }
 
       setSubmitted(true);
-    } catch {
-      setError("Unable to send reset instructions right now. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to send reset instructions right now. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
