@@ -40,6 +40,49 @@ const EXTRA_BATCH_KEY = "zc_extra_batches_v1";
 type Pathway = "liquid_co2" | "carbonated_water";
 const PROJECT_SETTINGS_KEY = "zc_project_settings_v1";
 
+function isPlaceholderBatchCode(value: string | null | undefined) {
+  const code = String(value ?? "").trim();
+  if (!code) return true;
+
+  const normalized = code.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!normalized) return true;
+
+  if (normalized === "b1" || normalized === "batch1") return true;
+  return false;
+}
+
+function toCsvValue(value: string | number | boolean | null | undefined) {
+  const asString = String(value ?? "");
+  const escaped = asString.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
+function downloadCsv(filename: string, rows: Array<Record<string, string | number | boolean | null | undefined>>) {
+  if (rows.length === 0) {
+    rows = [{ "": "" }];
+  }
+
+  const headers = Object.keys(rows[0]);
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((header) => toCsvValue(row[header])).join(",")),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function sanitizeFileName(value: string) {
+  return value.replace(/[^a-z0-9._-]+/gi, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "batch";
+}
+
 function normalizePathway(rawPathway: string | null | undefined): Pathway | undefined {
   const normalized = (rawPathway ?? "").trim().toLowerCase();
   if (normalized === "liquid_co2" || normalized === "carbonated_water") {
@@ -295,8 +338,14 @@ function ProjectDetail() {
     return () => { cancelled = true; };
   }, [token]);
 
-  const apiBatches = (project.batch ?? []).filter((b) => (b.code ?? "").trim().length > 0);
-  const projectExtras = extraBatches.filter((b) => b.projectId === project.id && (b.code ?? "").trim().length > 0);
+  const apiBatches = (project.batch ?? []).filter((b) => {
+    const code = (b.code ?? "").trim();
+    return code.length > 0 && !isPlaceholderBatchCode(code);
+  });
+  const projectExtras = extraBatches.filter((b) => {
+    const code = (b.code ?? "").trim();
+    return b.projectId === project.id && code.length > 0 && !isPlaceholderBatchCode(code);
+  });
   const normalizeBatchCode = (value: string | undefined | null) => (value ?? "").trim().toLowerCase();
   const allBatches = useMemo(() => {
     const seen = new Set<string>();
@@ -344,7 +393,7 @@ function ProjectDetail() {
     syncedBatches
       .filter((syncedBatch) => {
         const code = (syncedBatch.batchCode ?? "").trim();
-        if (!code) return false;
+        if (!code || isPlaceholderBatchCode(code)) return false;
         return !apiBatches.some((apiBatch) => normalizeBatchCode(apiBatch.code) === normalizeBatchCode(code));
       })
       .forEach((syncedBatch) => {
@@ -447,6 +496,59 @@ function ProjectDetail() {
       await downloadEvidence(item);
     }
   };
+
+  const exportBatchCsv = (batch: { code: string; runDate: string; id: string }, rows: Array<Record<string, string | number | boolean | null | undefined>>) => {
+    const filename = `${sanitizeFileName(batch.code || "batch")}.csv`;
+    downloadCsv(filename, rows);
+  };
+
+  const buildLocalBatchCsvRows = (batchCode: string, runDate: string, entries: BatchDataEntry[], currentPathway: Pathway) =>
+    entries.map((entry) => {
+      const base = { batchCode, runDate, timestamp: entry.timestamp };
+      if (currentPathway === "liquid_co2") {
+        return { ...base, co2InjectedG: (entry as LiquidCo2Entry).co2InjectedG };
+      }
+
+      const carbon = entry as CarbonatedWaterEntry;
+      return {
+        ...base,
+        waterUsed: carbon.waterUsed,
+        initialPh: carbon.initialPh,
+        finalPh: carbon.finalPh,
+        initialDissolvedCo2: carbon.initialDissolvedCo2,
+        finalDissolvedCo2: carbon.finalDissolvedCo2,
+        initialTemp: carbon.initialTemp,
+        finalTemp: carbon.finalTemp,
+        initialPressure: carbon.initialPressure,
+        finalPressure: carbon.finalPressure,
+        initialFlowRate: carbon.initialFlowRate,
+        finalFlowRate: carbon.finalFlowRate,
+        energyUsed: carbon.energyUsed,
+      };
+    });
+
+  const buildSyncedBatchCsvRows = (batch: BatchSyncItem, fallbackRunDate: string) =>
+    batch.batchData.map((entry, index) => ({
+      batchCode: batch.batchCode,
+      runDate: batch.startTime ? batch.startTime.slice(0, 10) : fallbackRunDate,
+      entry: index + 1,
+      totalWaterVolume: entry.totalWaterVolume,
+      influentPressurePT101: entry.influentPressurePT101,
+      influentFlowRateFT101: entry.influentFlowRateFT101,
+      influentPhAIT101: entry.influentPhAIT101,
+      influentDissolvedCo2AT101: entry.influentDissolvedCo2AT101,
+      co2MassFlowFIT101: entry.co2MassFlowFIT101,
+      effluentFlowFT102: entry.effluentFlowFT102,
+      effluentFlowFT103: entry.effluentFlowFT103,
+      effluentDissolvedCo2AT102: entry.effluentDissolvedCo2AT102,
+      effluentPhAIT103: entry.effluentPhAIT103,
+      injectedCo2: entry.injectedCo2,
+      dissolvedCo2: entry.dissolvedCo2,
+      co2Weight: entry.co2Weight,
+      systemRuntime: entry.systemRuntime,
+      timestamp: entry.timestamp,
+      systemStatus: entry.systemStatus,
+    }));
 
   return (
     <AppShell title={project.name}>
@@ -593,13 +695,17 @@ function ProjectDetail() {
                               <TableRow className="bg-muted/30 hover:bg-muted/30">
                                 <TableCell colSpan={11} className="p-4">
                                   {syncedBatch ? (
-                                    <SyncedBatchDataPanel batch={syncedBatch} />
+                                    <SyncedBatchDataPanel
+                                      batch={syncedBatch}
+                                      onDownload={() => exportBatchCsv(b, buildSyncedBatchCsvRows(syncedBatch, b.runDate))}
+                                    />
                                   ) : (
                                     <BatchDataPanel
                                       pathway={pathway}
                                       entries={entries}
                                       canEdit={can("projects:edit")}
                                       onAdd={() => setEntryDialogBatch(b.id)}
+                                      onDownload={() => exportBatchCsv(b, buildLocalBatchCsvRows(b.code, b.runDate, entries, pathway))}
                                     />
                                   )}
                                 </TableCell>
@@ -1013,12 +1119,13 @@ function ProjectSettingsDialog({ pathway, onSave }: { pathway: Pathway; onSave: 
 }
 
 function BatchDataPanel({
-  pathway, entries, canEdit, onAdd,
+  pathway, entries, canEdit, onAdd, onDownload,
 }: {
   pathway: Pathway;
   entries: BatchDataEntry[];
   canEdit: boolean;
   onAdd: () => void;
+  onDownload: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -1026,11 +1133,16 @@ function BatchDataPanel({
         <div className="text-xs uppercase tracking-wider text-muted-foreground">
           Batch data · {pathway === "liquid_co2" ? "Liquid CO₂" : "Carbonated water"}
         </div>
-        {canEdit && (
-          <Button size="sm" variant="outline" onClick={onAdd}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onDownload}>
+            <Download className="h-3.5 w-3.5 mr-1" /> CSV
           </Button>
-        )}
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={onAdd}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add entry
+            </Button>
+          )}
+        </div>
       </div>
       <div className="rounded-md border bg-background overflow-x-auto">
         {pathway === "liquid_co2" ? (
@@ -1101,7 +1213,7 @@ function BatchDataPanel({
   );
 }
 
-function SyncedBatchDataPanel({ batch }: { batch: BatchSyncItem }) {
+function SyncedBatchDataPanel({ batch, onDownload }: { batch: BatchSyncItem; onDownload: () => void }) {
   const columns: Array<{ key: keyof BatchDataSyncEntry; label: string }> = [
     { key: "totalWaterVolume", label: "Water volume" },
     { key: "influentPressurePT101", label: "Influent pressure PT101" },
@@ -1115,6 +1227,7 @@ function SyncedBatchDataPanel({ batch }: { batch: BatchSyncItem }) {
     { key: "effluentPhAIT103", label: "Effluent pH AIT103" },
     { key: "injectedCo2", label: "Injected CO2" },
     { key: "dissolvedCo2", label: "Dissolved CO2" },
+    { key: "co2Weight", label: "CO weight" },
     { key: "systemRuntime", label: "Runtime" },
     { key: "timestamp", label: "Timestamp" },
     { key: "systemStatus", label: "System status" },
@@ -1122,10 +1235,15 @@ function SyncedBatchDataPanel({ batch }: { batch: BatchSyncItem }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
-        <span>CO2 injected: {batch.co2Injected || "-"}</span>
-        <span>Started: {batch.startTime || "-"}</span>
-        <span>Ended: {batch.endTime || "-"}</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+          <span>CO2 injected: {batch.co2Injected || "-"}</span>
+          <span>Started: {batch.startTime || "-"}</span>
+          <span>Ended: {batch.endTime || "-"}</span>
+        </div>
+        <Button size="sm" variant="outline" onClick={onDownload}>
+          <Download className="h-3.5 w-3.5 mr-1" /> CSV
+        </Button>
       </div>
       <div className="overflow-x-auto rounded-md border bg-background">
         <Table>

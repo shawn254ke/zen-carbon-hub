@@ -13,6 +13,7 @@ export type BatchDataSyncEntry = {
   effluentPhAIT103: number;
   injectedCo2: number;
   dissolvedCo2: number;
+  co2Weight: number;
   systemRuntime: string;
   timestamp: string;
   systemStatus: boolean;
@@ -26,7 +27,10 @@ export type BatchSyncItem = {
   batchData: BatchDataSyncEntry[];
 };
 
-type BackendBatchDataSyncDto = Partial<BatchDataSyncEntry>;
+type BackendBatchDataSyncDto = Partial<BatchDataSyncEntry> & {
+  Co2weight?: string | number | null;
+  co2Weight?: string | number | null;
+};
 type BackendBatchSyncDto = {
   batchCode?: string | null;
   co2Injected?: string | number | null;
@@ -46,6 +50,8 @@ function toNumber(value: unknown) {
 }
 
 function mapBatchData(dto: BackendBatchDataSyncDto): BatchDataSyncEntry {
+  const co2WeightValue = dto.co2Weight ?? dto.Co2weight ?? dto.co2Weight ?? 0;
+
   return {
     totalWaterVolume: toNumber(dto.totalWaterVolume),
     influentPressurePT101: toNumber(dto.influentPressurePT101),
@@ -59,6 +65,7 @@ function mapBatchData(dto: BackendBatchDataSyncDto): BatchDataSyncEntry {
     effluentPhAIT103: toNumber(dto.effluentPhAIT103),
     injectedCo2: toNumber(dto.injectedCo2),
     dissolvedCo2: toNumber(dto.dissolvedCo2),
+    co2Weight: toNumber(co2WeightValue),
     systemRuntime: String(dto.systemRuntime ?? "").trim(),
     timestamp: String(dto.timestamp ?? "").trim(),
     systemStatus: Boolean(dto.systemStatus),
