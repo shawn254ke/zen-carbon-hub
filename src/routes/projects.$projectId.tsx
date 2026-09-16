@@ -407,7 +407,7 @@ function ProjectDetail() {
           cementKg: undefined,
           waterKg: undefined,
           admixtureKg: undefined,
-          status: "in_progress",
+          status: "complete",
           createdBy: "—",
           extra: undefined,
           apiBatch: undefined,
@@ -547,7 +547,6 @@ function ProjectDetail() {
       co2Weight: entry.co2Weight,
       systemRuntime: entry.systemRuntime,
       timestamp: entry.timestamp,
-      systemStatus: entry.systemStatus,
     }));
 
   return (
@@ -667,6 +666,7 @@ function ProjectDetail() {
                         const isOpen = !!expanded[b.id];
                         const syncedBatch = syncedBatches.find((item) => item.batchCode.trim().toLowerCase() === b.code.trim().toLowerCase());
                         const entries = batchData[b.id] ?? (b.apiBatch ? mapApiBatchToEntries(b.apiBatch, pathway) : []);
+                        const statusLabel = "Complete";
                         return (
                           <Fragment key={b.id}>
                             <TableRow>
@@ -689,7 +689,7 @@ function ProjectDetail() {
                               <TableCell className="text-right">{b.waterKg ?? "—"}</TableCell>
                               <TableCell className="text-right">{b.admixtureKg ?? "—"}</TableCell>
                               <TableCell>{b.createdBy}</TableCell>
-                              <TableCell><Badge variant={b.status === "complete" ? "default" : "secondary"}>{b.status}</Badge></TableCell>
+                              <TableCell><Badge variant="default">{statusLabel}</Badge></TableCell>
                             </TableRow>
                             {isOpen && (
                               <TableRow className="bg-muted/30 hover:bg-muted/30">
@@ -1169,18 +1169,18 @@ function BatchDataPanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right">Water used</TableHead>
+                <TableHead className="text-right">Water used (m³)</TableHead>
                 <TableHead className="text-right">Initial pH</TableHead>
                 <TableHead className="text-right">Final pH</TableHead>
-                <TableHead className="text-right">Initial dCO₂</TableHead>
-                <TableHead className="text-right">Final dCO₂</TableHead>
-                <TableHead className="text-right">Initial T</TableHead>
-                <TableHead className="text-right">Final T</TableHead>
-                <TableHead className="text-right">Initial P</TableHead>
-                <TableHead className="text-right">Final P</TableHead>
-                <TableHead className="text-right">Initial flow</TableHead>
-                <TableHead className="text-right">Final flow</TableHead>
-                <TableHead className="text-right">Energy</TableHead>
+                <TableHead className="text-right">Initial dCO₂ (ppm)</TableHead>
+                <TableHead className="text-right">Final dCO₂ (ppm)</TableHead>
+                <TableHead className="text-right">Initial T (°C)</TableHead>
+                <TableHead className="text-right">Final T (°C)</TableHead>
+                <TableHead className="text-right">Initial P (bars)</TableHead>
+                <TableHead className="text-right">Final P (bars)</TableHead>
+                <TableHead className="text-right">Initial flow (l/min)</TableHead>
+                <TableHead className="text-right">Final flow (l/min)</TableHead>
+                <TableHead className="text-right">Energy (kWh)</TableHead>
                 <TableHead>Timestamp</TableHead>
               </TableRow>
             </TableHeader>
@@ -1215,22 +1215,21 @@ function BatchDataPanel({
 
 function SyncedBatchDataPanel({ batch, onDownload }: { batch: BatchSyncItem; onDownload: () => void }) {
   const columns: Array<{ key: keyof BatchDataSyncEntry; label: string }> = [
-    { key: "totalWaterVolume", label: "Water volume" },
-    { key: "influentPressurePT101", label: "Influent pressure PT101" },
-    { key: "influentFlowRateFT101", label: "Influent flow FT101" },
+    { key: "totalWaterVolume", label: "Water volume (l)" },
+    { key: "influentPressurePT101", label: "Influent pressure PT101 (bars)" },
+    { key: "influentFlowRateFT101", label: "Influent flow FT101 (l/min)" },
     { key: "influentPhAIT101", label: "Influent pH AIT101" },
-    { key: "influentDissolvedCo2AT101", label: "Influent dCO2 AT101" },
-    { key: "co2MassFlowFIT101", label: "CO2 mass flow FIT101" },
-    { key: "effluentFlowFT102", label: "Effluent flow FT102" },
-    { key: "effluentFlowFT103", label: "Effluent flow FT103" },
-    { key: "effluentDissolvedCo2AT102", label: "Effluent dCO2 AT102" },
+    { key: "influentDissolvedCo2AT101", label: "Influent dCO₂ AT101 (ppm)" },
+    { key: "co2MassFlowFIT101", label: "CO₂ mass flow FIT101 (g/min)" },
+    { key: "effluentFlowFT102", label: "Effluent flow FT102 (l/min)" },
+    { key: "effluentFlowFT103", label: "Effluent flow FT103 (l/min)" },
+    { key: "effluentDissolvedCo2AT102", label: "Effluent dCO₂ AT102 (ppm)" },
     { key: "effluentPhAIT103", label: "Effluent pH AIT103" },
-    { key: "injectedCo2", label: "Injected CO2" },
-    { key: "dissolvedCo2", label: "Dissolved CO2" },
-    { key: "co2Weight", label: "CO weight" },
-    { key: "systemRuntime", label: "Runtime" },
+    { key: "injectedCo2", label: "Injected CO₂ (g)" },
+    { key: "dissolvedCo2", label: "Dissolved CO₂ (ppm)" },
+    { key: "co2Weight", label: "CO₂ weight (kg)" },
+    { key: "systemRuntime", label: "Runtime (s)" },
     { key: "timestamp", label: "Timestamp" },
-    { key: "systemStatus", label: "System status" },
   ];
 
   return (
@@ -1260,7 +1259,7 @@ function SyncedBatchDataPanel({ batch, onDownload }: { batch: BatchSyncItem; onD
               <TableRow key={`${entry.timestamp}-${index}`}>
                 {columns.map((column) => (
                   <TableCell key={column.key} className="whitespace-nowrap">
-                    {column.key === "systemStatus" ? (entry.systemStatus ? "Running" : "Stopped") : entry[column.key]}
+                    {entry[column.key]}
                   </TableCell>
                 ))}
               </TableRow>
