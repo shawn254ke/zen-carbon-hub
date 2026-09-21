@@ -32,7 +32,7 @@ type Ctx = {
 
 const ChecklistCtx = createContext<Ctx | null>(null);
 
-const ALL_DEPARTMENTS: Department[] = ["ic", "mechanical", "chemical", "mrv", "admin"];
+const ALL_DEPARTMENTS: Department[] = ["ic", "mechanical", "chemical", "mrv", "admin","concrete"];
 
 function flattenEntries(entries: ChecklistEntryMap) {
   return ALL_DEPARTMENTS.flatMap((dept) => entries[dept]);
@@ -45,6 +45,7 @@ function mergeEntriesUnique(base: ChecklistEntryMap, incoming: ChecklistEntry[])
     chemical: [...base.chemical],
     mrv: [...base.mrv],
     admin: [...base.admin],
+    concrete: [...base.concrete],
   };
 
   const seen = new Set(
@@ -147,6 +148,7 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
     chemical: entries.chemical.map((entry) => entry.label),
     mrv: entries.mrv.map((entry) => entry.label),
     admin: entries.admin.map((entry) => entry.label),
+    concrete: entries.concrete.map((entry) => entry.label),
   }), [entries]);
 
   const getChecklistForProject = useCallback((projectId: string): ChecklistMap => {
@@ -168,6 +170,7 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
       chemical: pickLabels("chemical"),
       mrv: pickLabels("mrv"),
       admin: pickLabels("admin"),
+      concrete: pickLabels("concrete"),
     };
   }, [entries]);
 

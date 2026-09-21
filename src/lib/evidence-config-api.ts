@@ -2,7 +2,7 @@ import { expireSession, getStoredSession } from "@/lib/auth";
 import { type CreateDepartment, type Department as DepartmentEntity, type DepartmentDTO } from "@/models/department.model";
 import { type CreateEvidenceChecklist } from "@/models/evidence-checklist.model";
 
-export type Department = "ic" | "mechanical" | "chemical" | "mrv" | "admin";
+export type Department = "ic" | "mechanical" | "chemical" | "mrv" | "admin" | "concrete";
 
 const DEFAULT_DEPARTMENTS: { key: Department; label: string; description: string }[] = [
   { key: "ic", label: "Instrumentation & Control", description: "Sensors, controllers, calibration" },
@@ -10,6 +10,7 @@ const DEFAULT_DEPARTMENTS: { key: Department; label: string; description: string
   { key: "chemical", label: "Chemical / Process", description: "Process flow, mass balance" },
   { key: "mrv", label: "MRV", description: "Monitoring, reporting, verification" },
   { key: "admin", label: "Administration", description: "Permits, accreditations, compliance" },
+  { key: "concrete", label: "Concrete", description: "Concrete mix design, placement, curing" },
 ];
 
 export type DepartmentInfo = {
@@ -47,7 +48,7 @@ const DEFAULT_DEPARTMENT_BY_KEY = Object.fromEntries(
   DEFAULT_DEPARTMENTS.map((department) => [department.key, department]),
 ) as Record<Department, (typeof DEFAULT_DEPARTMENTS)[number]>;
 
-const DEPARTMENT_KEYS: Department[] = ["ic", "mechanical", "chemical", "mrv", "admin"];
+const DEPARTMENT_KEYS: Department[] = ["ic", "mechanical", "chemical", "mrv", "admin", "concrete"];
 
 function getApiEndpoints(path: string) {
   const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -108,6 +109,7 @@ function normalizeDepartmentKey(name: string | null | undefined): Department | n
   if (normalized.includes("chemical") || normalized.includes("process")) return "chemical";
   if (normalized === "mrv" || normalized.includes("monitoring") || normalized.includes("verification")) return "mrv";
   if (normalized === "admin" || normalized.includes("administration")) return "admin";
+  if (normalized.includes("concrete")) return "concrete";
 
   return null;
 }
@@ -293,6 +295,7 @@ export function getDefaultChecklistEntries(): Record<Department, ChecklistEntry[
     chemical: [],
     mrv: [],
     admin: [],
+    concrete: [],
   };
 }
 
@@ -303,6 +306,7 @@ export function createEmptyChecklistEntryMap() {
     chemical: [],
     mrv: [],
     admin: [],
+    concrete: [],
   } as Record<Department, ChecklistEntry[]>;
 }
 

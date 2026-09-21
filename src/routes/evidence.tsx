@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createEvidenceApi, deleteEvidenceApi, fetchEvidenceApi, type EvidenceItem, updateEvidenceApi } from "@/lib/evidence-api";
 import { type Department } from "@/lib/evidence-config-api";
 import { useChecklist } from "@/lib/checklist-store";
-import { useAuth, type Role } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { useProjects } from "@/lib/projects-context";
 import { type Project } from "@/lib/projects-api";
@@ -36,27 +36,9 @@ export const Route = createFileRoute("/evidence")({
   component: EvidencePage,
 });
 
-// Map a department-lead role to the department it owns.
-const ROLE_TO_DEPT: Partial<Record<Role, Department>> = {
-  dept_ic: "ic",
-  dept_mechanical: "mechanical",
-  dept_chemical: "chemical",
-  dept_mrv: "mrv",
-  dept_admin: "admin",
-};
-
 function useCanUploadFor() {
-  const { user, can } = useAuth();
-  return (dept: Department) => {
-    if (!can("evidence:upload")) return false;
-    // Admin & MRV can upload for any department.
-    if (user.role === "admin" || user.role === "dept_mrv") return true;
-    // Project managers may upload evidence across departments.
-    if (user.role === "project_manager") return true;
-    // Department leads may only upload for their own department.
-    const owned = ROLE_TO_DEPT[user.role];
-    return owned === dept;
-  };
+  const { can } = useAuth();
+  return () => can("evidence:upload");
 }
 
 function useEvidenceItems() {
@@ -109,7 +91,7 @@ function EvidencePage() {
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Evidence Repository</h2>
             <p className="text-sm text-muted-foreground">
-              All departments can view every submission. Uploads are restricted to the owning department.
+              All departments can view and upload evidence for every department.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -149,7 +131,7 @@ function EvidencePage() {
                 projectId={projectId}
                 projects={projects}
                 required={checklist[department.key]}
-                canUpload={canUploadFor(department.key)}
+                canUpload={canUploadFor()}
                 evidenceItems={evidenceItems}
                 onUploaded={reloadEvidence}
               />
@@ -308,7 +290,7 @@ function EvidenceTable({
           </Button>
         ) : (
           <Badge variant="secondary" className="gap-1">
-            <Lock className="h-3 w-3" /> View only — {deptLabel} uploads
+            <Lock className="h-3 w-3" /> View only
           </Badge>
         )}
       </CardHeader>
@@ -329,7 +311,7 @@ function EvidenceTable({
                   <TableCell>{e.uploadedAt}</TableCell>
                   <TableCell><Badge variant={e.status === "verified" ? "default" : e.status === "pending" ? "secondary" : "destructive"}>{e.status}</Badge></TableCell>
                   <TableCell className="text-right">
-                    {canManage(e) ? (
+                    
                       <div className="flex justify-end gap-1">
                         <Button size="icon" variant="ghost" onClick={() => setEditItem(e)} aria-label="Edit">
                           <Pencil className="h-4 w-4" />
@@ -338,9 +320,7 @@ function EvidenceTable({
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
+                    
                   </TableCell>
                 </TableRow>
               );

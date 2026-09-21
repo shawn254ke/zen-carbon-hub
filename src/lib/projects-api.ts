@@ -8,7 +8,7 @@ import { type Batch as BatchModel } from "@/models/batch.model";
 import { type LaboratoryAnalysis as LaboratoryAnalysisModel } from "@/models/laboratory-analysis.model";
 
 export type ProjectCategory = "industrial" | "internal";
-export type Department = "ic" | "mechanical" | "chemical" | "mrv" | "admin";
+export type Department = "ic" | "mechanical" | "chemical" | "mrv" | "admin" | "concrete";
 export type ProjectStatus = "active" | "planning" | "verification" | "closed";
 export type EvidenceStatus = "pending" | "verified" | "rejected";
 export type LabResultStatus = "reported" | "in_progress";
@@ -294,6 +294,7 @@ function normalizeDepartment(rawDepartment: string | null | undefined): Departme
   if (normalized.includes("chem")) return "chemical";
   if (normalized.includes("mrv") || normalized.includes("verif")) return "mrv";
   if (normalized.includes("admin")) return "admin";
+  if (normalized.includes("concrete")) return "concrete";
   return "ic";
 }
 
