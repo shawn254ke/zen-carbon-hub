@@ -223,6 +223,8 @@ type BackendBatchDto = {
   id?: string | number | null;
   projectId?: string | number | null;
   batchNumber?: string | null;
+  batchCode?: string | null;
+  code?: string | null;
   cement?: string | number | null;
   fines?: string | number | null;
   coarse?: string | number | null;
@@ -433,27 +435,13 @@ function mapEmissions(items: BackendEmissionDto[] | null | undefined, projectId:
   }));
 }
 
-function isPlaceholderBatchCode(value: string | null | undefined) {
-  const code = String(value ?? "").trim();
-  if (!code) return true;
-
-  const normalized = code.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (!normalized) return true;
-
-  if (normalized === "b1" || normalized === "batch1") return true;
-  return false;
-}
-
 function mapBatches(items: BackendBatchDto[] | null | undefined, projectId: string): Batch[] {
   if (!items) return [];
 
   return items
-    .filter((item) => {
-      const batchNumber = String(item.batchNumber ?? "").trim();
-      return batchNumber.length > 0 && !isPlaceholderBatchCode(batchNumber);
-    })
+    .filter((item) => String(item.batchNumber ?? item.batchCode ?? item.code ?? "").trim().length > 0)
     .map((item, index) => {
-      const batchNumber = String(item.batchNumber ?? "").trim();
+      const batchNumber = String(item.batchNumber ?? item.batchCode ?? item.code ?? "").trim();
       return {
         id: String(item.id ?? `b_${projectId}_${index}`),
         projectId: String(item.projectId ?? projectId),

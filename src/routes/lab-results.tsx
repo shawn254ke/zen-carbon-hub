@@ -175,7 +175,8 @@ function LabResultsPage() {
   } = useLabResults();
   const { labs } = useLabs();
   const canEditAnalysis = can("admin:all") || can("lab:upload");
-  const canUploadResult = can("admin:all") || can("lab:upload");
+  const canDeleteResult = can("admin:all") || can("lab:upload");
+  const canUploadResult = true;
   const allResults = useMemo(() => results, [results]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -338,7 +339,7 @@ function LabResultsPage() {
                           <Button size="sm" variant="outline" disabled={downloadingId === l.id} onClick={() => void downloadResult(l)}>
                             {downloadingId === l.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />} Report
                           </Button>
-                          {canUploadResult && (
+                          {canDeleteResult && (
                             <Button size="sm" variant="ghost" disabled={deletingId === l.id} onClick={() => void removeResult(l.id)}>
                               {deletingId === l.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />} Delete
                             </Button>
@@ -382,17 +383,15 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
             Central directory of external and internal labs, their contacts, and compliance documents (ISO 17025 and related accreditations).
           </p>
         </div>
-        {canManage && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-1" /> Register lab</Button>
-            </DialogTrigger>
-            <RegisterLabDialog onSubmit={async (payload) => {
-              await createLab(payload);
-              setOpen(false);
-            }} />
-          </Dialog>
-        )}
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button><Plus className="h-4 w-4 mr-1" /> Register lab</Button>
+          </DialogTrigger>
+          <RegisterLabDialog onSubmit={async (payload) => {
+            await createLab(payload);
+            setOpen(false);
+          }} />
+        </Dialog>
       </div>
 
       {error && (
