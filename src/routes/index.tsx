@@ -116,6 +116,7 @@ function Dashboard() {
     dept_chemical: "chemical",
     dept_mrv: "mrv",
     dept_admin: "admin",
+    dept_concrete: "concrete",
   };
 
   return (

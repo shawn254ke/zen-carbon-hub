@@ -66,6 +66,7 @@ const ROLE_OPTIONS: Role[] = [
   "dept_chemical",
   "dept_mrv",
   "dept_admin",
+  "dept_concrete",
   "viewer",
 ];
 

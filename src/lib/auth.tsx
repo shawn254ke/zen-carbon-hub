@@ -12,7 +12,8 @@ export type Role =
   | "dept_mechanical"
   | "dept_chemical"
   | "dept_mrv"
-  | "dept_admin";
+  | "dept_admin"
+  | "dept_concrete";
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrator",
@@ -27,6 +28,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   dept_chemical: "Chemical Dept.",
   dept_mrv: "MRV Dept.",
   dept_admin: "Administration Dept.",
+  dept_concrete: "Concrete Dept.",
 };
 
 export type User = { id: string; name: string; email: string; role: Role };
@@ -66,6 +68,7 @@ const PERMS: Record<Role, Permission[]> = {
   dept_chemical: ["evidence:upload"],
   dept_mrv: ["evidence:upload", "evidence:verify", "verification:manage", "projects:create"],
   dept_admin: ["evidence:upload"],
+  dept_concrete: ["evidence:upload"],
 };
 
 const STORAGE_USER_KEY = "zc_user";
@@ -195,6 +198,9 @@ function normalizeRole(rawRole: string | null | undefined): Role {
       return "dept_mrv";
     case "DEPT_ADMIN":
       return "dept_admin";
+    case "DEPT_CONCRETE":
+    case "CONCRETE":
+      return "dept_concrete";
     default:
       if (typeof rawRole === "string") {
         const fallback = rawRole.trim().toLowerCase();
@@ -206,6 +212,7 @@ function normalizeRole(rawRole: string | null | undefined): Role {
         if (fallback === "dept_chemical") return "dept_chemical";
         if (fallback === "dept_mrv") return "dept_mrv";
         if (fallback === "dept_admin") return "dept_admin";
+        if (fallback === "dept_concrete" || fallback === "concrete") return "dept_concrete";
       }
       return "viewer";
   }

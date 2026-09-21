@@ -46,6 +46,7 @@ const API_ROLE_BY_UI_ROLE: Record<Role, string> = {
   dept_chemical: "DEPT_CHEMICAL",
   dept_mrv: "DEPT_MRV",
   dept_admin: "DEPT_ADMIN",
+  dept_concrete: "DEPT_CONCRETE",
 };
 
 const ADMIN_MANAGED_ROLES: Role[] = [
@@ -54,6 +55,7 @@ const ADMIN_MANAGED_ROLES: Role[] = [
   "dept_mrv",
   "dept_mechanical",
   "dept_chemical",
+  "dept_concrete",
   "client",
 ];
 
@@ -64,6 +66,7 @@ const SEEDED_ROLE_IDS: Partial<Record<Role, number>> = {
   dept_mechanical: 4,
   dept_chemical: 5,
   client: 6,
+  dept_concrete: 7,
 };
 
 function splitFullName(value: string) {
@@ -104,6 +107,9 @@ function normalizeRoleFromApi(rawRole: string | null | undefined): Role {
       return "dept_mrv";
     case "DEPT_ADMIN":
       return "dept_admin";
+    case "DEPT_CONCRETE":
+    case "CONCRETE":
+      return "dept_concrete";
     default:
       return "viewer";
   }
