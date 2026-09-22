@@ -628,9 +628,20 @@ export async function updateProjectApi(
         throw new Error("Your session has expired. Please sign in again.");
       }
 
-      lastMessage = text || `Update project failed (${response.status})`;
-    } catch {
-      lastMessage = "Unable to reach the project service.";
+      let message = text.trim();
+      if (text && response.headers.get("content-type")?.includes("application/json")) {
+        try {
+          const data = JSON.parse(text) as { message?: string; error?: string; details?: string };
+          message = data.message?.trim() || data.error?.trim() || data.details?.trim() || message;
+        } catch {
+          // Keep the raw response when the backend returns invalid JSON.
+        }
+      }
+      lastMessage = message || `Update project failed (${response.status})`;
+    } catch (error) {
+      if (error instanceof Error && error.message !== "Your session has expired. Please sign in again.") {
+        lastMessage = error.message;
+      }
     }
   }
 

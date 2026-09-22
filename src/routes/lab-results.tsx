@@ -420,7 +420,7 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
                     {lab.name}
                   </CardTitle>
                   {lab.contactPerson && (
-                    <CardDescription>{lab.contactPerson}</CardDescription>
+                    <CardDescription>Contact: {lab.contactPerson}</CardDescription>
                   )}
                 </div>
                 {canManage && (
@@ -449,7 +449,13 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
             <CardContent className="space-y-4">
               <div className="grid gap-1 text-sm text-muted-foreground">
                 {lab.email && <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5" /> {lab.email}</div>}
-                {lab.phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {lab.phone}</div>}
+                {lab.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5" />
+                    <span>Phone:</span>
+                    <a href={`tel:${lab.phone}`} className="hover:underline">{lab.phone}</a>
+                  </div>
+                )}
                 {lab.address && <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5" /> {lab.address}</div>}
                 {lab.notes && <div className="pt-1 text-foreground/80">{lab.notes}</div>}
               </div>
