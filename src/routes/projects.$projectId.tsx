@@ -347,6 +347,10 @@ function ProjectDetail() {
     return b.projectId === project.id && code.length > 0 && !isPlaceholderBatchCode(code);
   });
   const normalizeBatchCode = (value: string | undefined | null) => (value ?? "").trim().toLowerCase();
+  const projectBatchCodes = useMemo(
+    () => new Set(apiBatches.map((batch) => normalizeBatchCode(batch.code))),
+    [apiBatches],
+  );
   const allBatches = useMemo(() => {
     const seen = new Set<string>();
     const merged: Array<{
@@ -394,6 +398,7 @@ function ProjectDetail() {
       .filter((syncedBatch) => {
         const code = (syncedBatch.batchCode ?? "").trim();
         if (!code || isPlaceholderBatchCode(code)) return false;
+        if (!projectBatchCodes.has(normalizeBatchCode(code))) return false;
         return !apiBatches.some((apiBatch) => normalizeBatchCode(apiBatch.code) === normalizeBatchCode(code));
       })
       .forEach((syncedBatch) => {
@@ -415,7 +420,7 @@ function ProjectDetail() {
       });
 
     return merged;
-  }, [apiBatches, projectExtras, syncedBatches]);
+  }, [apiBatches, projectBatchCodes, projectExtras, syncedBatches]);
   const [addOpen, setAddOpen] = useState(false);
   const labs = project.labResults ?? [];
   const evidence = project.evidences ?? [];
