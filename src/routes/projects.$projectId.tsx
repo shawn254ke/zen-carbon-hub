@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { getDefaultDepartments } from "@/lib/evidence-config-api";
 import { fetchProjectsApi, getProjectsCache, type Batch, type EvidenceItem, type LabResult, type LaboratoryAnalysis, type Project } from "@/lib/projects-api";
 import { fetchBatchesApi, type BatchDataSyncEntry, type BatchSyncItem } from "@/lib/batches-api";
+import { useProjects } from "@/lib/projects-context";
 
 const DEPARTMENTS = getDefaultDepartments();
 
@@ -255,7 +256,10 @@ function mapProjectAnalyses(project: Project): Record<string, Analysis> {
 }
 
 function ProjectDetail() {
-  const project = Route.useLoaderData();
+  const loaderProject = Route.useLoaderData();
+  const { projects, isLoading: areProjectsLoading } = useProjects();
+  const refreshedProject = projects.find((item) => item.id === loaderProject.id);
+  const project = !areProjectsLoading && refreshedProject ? refreshedProject : loaderProject;
   const { can, user, token } = useAuth();
   const [downloadingEvidenceIds, setDownloadingEvidenceIds] = useState<Record<string, boolean>>({});
   const [downloadingEvidenceDeptKeys, setDownloadingEvidenceDeptKeys] = useState<Record<string, boolean>>({});
