@@ -357,6 +357,9 @@ function ProjectDetail() {
   );
   const allBatches = useMemo(() => {
     const seen = new Set<string>();
+    const syncedBatchesByCode = new Map(
+      syncedBatches.map((batch) => [normalizeBatchCode(batch.batchCode), batch]),
+    );
     const merged: Array<{
       id: string;
       code: string;
@@ -390,10 +393,15 @@ function ProjectDetail() {
     });
 
     apiBatches.forEach((b) => {
+      const syncedBatch = syncedBatchesByCode.get(normalizeBatchCode(b.code));
       pushDistinct({
         id: b.id, code: b.code, runDate: b.runDate,
-        finesKg: b.fines, coarseKg: b.coarse, biocharKg: undefined,
-        cementKg: b.cement, waterKg: b.waterUsed, admixtureKg: b.addMixture,
+        finesKg: syncedBatch?.fines ?? b.fines,
+        coarseKg: syncedBatch?.coarse ?? b.coarse,
+        biocharKg: undefined,
+        cementKg: syncedBatch?.cement ?? b.cement,
+        waterKg: b.waterUsed,
+        admixtureKg: syncedBatch?.admixture ?? syncedBatch?.addMixture ?? b.addMixture,
         status: b.status, createdBy: "—", extra: undefined, apiBatch: b,
       });
     });

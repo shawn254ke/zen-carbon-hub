@@ -160,6 +160,10 @@ export async function fetchLaboratoryResultsApi(token?: string | null) {
 }
 
 export async function createLaboratoryResultApi(payload: UploadLaboratoryResultPayload, token?: string | null) {
+  if (payload.batchId?.trim() && !/^\d+$/.test(payload.batchId.trim())) {
+    throw new Error("Selected batch does not have a valid backend ID. Upload without a batch or refresh the project data.");
+  }
+
   const endpoint = getLaboratoryResultsEndpoint();
   const formData = new FormData();
 

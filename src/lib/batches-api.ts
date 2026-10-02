@@ -24,6 +24,11 @@ export type BatchSyncItem = {
   co2Injected: string;
   startTime: string;
   endTime: string;
+  cement?: number;
+  coarse?: number;
+  fines?: number;
+  addMixture?: number;
+  admixture?: number;
   batchData: BatchDataSyncEntry[];
 };
 
@@ -36,6 +41,11 @@ type BackendBatchSyncDto = {
   co2Injected?: string | number | null;
   startTime?: string | null;
   endTime?: string | null;
+  cement?: string | number | null;
+  coarse?: string | number | null;
+  fines?: string | number | null;
+  addMixture?: string | number | null;
+  admixture?: string | number | null;
   batchData?: BackendBatchDataSyncDto[] | null;
 };
 
@@ -47,6 +57,12 @@ function getBatchesEndpoint() {
 function toNumber(value: unknown) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toOptionalNumber(value: string | number | null | undefined) {
+  if (value == null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function mapBatchData(dto: BackendBatchDataSyncDto): BatchDataSyncEntry {
@@ -78,6 +94,11 @@ function mapBatch(dto: BackendBatchSyncDto): BatchSyncItem {
     co2Injected: String(dto.co2Injected ?? "").trim(),
     startTime: (dto.startTime ?? "").trim(),
     endTime: (dto.endTime ?? "").trim(),
+    cement: toOptionalNumber(dto.cement),
+    coarse: toOptionalNumber(dto.coarse),
+    fines: toOptionalNumber(dto.fines),
+    addMixture: toOptionalNumber(dto.addMixture),
+    admixture: toOptionalNumber(dto.admixture),
     batchData: (dto.batchData ?? []).map(mapBatchData),
   };
 }
