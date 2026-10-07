@@ -228,6 +228,7 @@ type BackendBatchDto = {
   cement?: string | number | null;
   fines?: string | number | null;
   coarse?: string | number | null;
+  Coarse?: string | number | null;
   addMixture?: string | number | null;
   initialPH?: string | number | null;
   finalPH?: string | number | null;
@@ -456,7 +457,9 @@ function mapBatches(items: BackendBatchDto[] | null | undefined, projectId: stri
         energy: item.energy ?? undefined,
         cement: item.cement != null ? toNumber(item.cement) : undefined,
         fines: item.fines != null ? toNumber(item.fines) : undefined,
-        coarse: item.coarse != null ? toNumber(item.coarse) : undefined,
+        coarse: item.coarse != null || item.Coarse != null
+          ? toNumber(item.coarse ?? item.Coarse)
+          : undefined,
         addMixture: item.addMixture != null ? toNumber(item.addMixture) : undefined,
         initialPh: item.initialPH != null ? toNumber(item.initialPH) : undefined,
         finalPh: item.finalPH != null ? toNumber(item.finalPH) : undefined,

@@ -43,6 +43,7 @@ type BackendBatchSyncDto = {
   endTime?: string | null;
   cement?: string | number | null;
   coarse?: string | number | null;
+  Coarse?: string | number | null;
   fines?: string | number | null;
   addMixture?: string | number | null;
   admixture?: string | number | null;
@@ -95,7 +96,7 @@ function mapBatch(dto: BackendBatchSyncDto): BatchSyncItem {
     startTime: (dto.startTime ?? "").trim(),
     endTime: (dto.endTime ?? "").trim(),
     cement: toOptionalNumber(dto.cement),
-    coarse: toOptionalNumber(dto.coarse),
+    coarse: toOptionalNumber(dto.coarse ?? dto.Coarse),
     fines: toOptionalNumber(dto.fines),
     addMixture: toOptionalNumber(dto.addMixture),
     admixture: toOptionalNumber(dto.admixture),
