@@ -1227,7 +1227,7 @@ function BatchDataPanel({
                 <TableHead className="text-right">Initial flow (l/min)</TableHead>
                 <TableHead className="text-right">Final flow (l/min)</TableHead>
                 <TableHead className="text-right">Energy (kWh)</TableHead>
-                <TableHead>Timestamp</TableHead>
+                <TableHead>Timestamps</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
