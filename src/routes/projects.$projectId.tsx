@@ -143,6 +143,35 @@ type CarbonatedWaterEntry = {
 type BatchDataEntry = LiquidCo2Entry | CarbonatedWaterEntry;
 const BATCH_DATA_KEY = "zc_batch_data_v1";
 
+function getBatchReadingAnomaly(field: string, value: number) {
+  if (!Number.isFinite(value)) return undefined;
+  if (value < 0) return "Negative values are not allowed";
+
+  if (field === "initialPh" || field === "influentPhAIT101") {
+    return value < 7 || value > 8.5 ? "Outside expected range of 7 to 8.5" : undefined;
+  }
+  if (field === "finalPh" || field === "effluentPhAIT103") {
+    return value < 4 || value > 7 ? "Outside expected range of 4 to 7" : undefined;
+  }
+  if (field === "initialTemp" || field === "finalTemp") {
+    return value < 20 || value > 30 ? "Outside expected range of 20 to 30 °C" : undefined;
+  }
+  if (field === "initialPressure" || field === "finalPressure" || field === "influentPressurePT101") {
+    return value > 5 ? "Exceeds maximum pressure of 5 bars" : undefined;
+  }
+
+  return undefined;
+}
+
+function BatchReadingValue({ field, value }: { field: string; value: number }) {
+  const anomaly = getBatchReadingAnomaly(field, value);
+  return (
+    <span className={anomaly ? "font-semibold text-destructive" : undefined} title={anomaly}>
+      {value}
+    </span>
+  );
+}
+
 function mapApiBatchToEntries(batch: Batch, pathway: Pathway): BatchDataEntry[] {
   const hasTimestamp = Boolean(batch.timestamp || batch.runDate);
 
@@ -1207,18 +1236,18 @@ function BatchDataPanel({
               )}
               {(entries as CarbonatedWaterEntry[]).map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="text-right">{e.waterUsed}</TableCell>
-                  <TableCell className="text-right">{e.initialPh}</TableCell>
-                  <TableCell className="text-right">{e.finalPh}</TableCell>
-                  <TableCell className="text-right">{e.initialDissolvedCo2}</TableCell>
-                  <TableCell className="text-right">{e.finalDissolvedCo2}</TableCell>
-                  <TableCell className="text-right">{e.initialTemp}</TableCell>
-                  <TableCell className="text-right">{e.finalTemp}</TableCell>
-                  <TableCell className="text-right">{e.initialPressure}</TableCell>
-                  <TableCell className="text-right">{e.finalPressure}</TableCell>
-                  <TableCell className="text-right">{e.initialFlowRate}</TableCell>
-                  <TableCell className="text-right">{e.finalFlowRate}</TableCell>
-                  <TableCell className="text-right">{e.energyUsed}</TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="waterUsed" value={e.waterUsed} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="initialPh" value={e.initialPh} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="finalPh" value={e.finalPh} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="initialDissolvedCo2" value={e.initialDissolvedCo2} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="finalDissolvedCo2" value={e.finalDissolvedCo2} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="initialTemp" value={e.initialTemp} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="finalTemp" value={e.finalTemp} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="initialPressure" value={e.initialPressure} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="finalPressure" value={e.finalPressure} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="initialFlowRate" value={e.initialFlowRate} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="finalFlowRate" value={e.finalFlowRate} /></TableCell>
+                  <TableCell className="text-right"><BatchReadingValue field="energyUsed" value={e.energyUsed} /></TableCell>
                   <TableCell>{e.timestamp}</TableCell>
                 </TableRow>
               ))}
@@ -1276,7 +1305,11 @@ function SyncedBatchDataPanel({ batch, onDownload }: { batch: BatchSyncItem; onD
               <TableRow key={`${entry.timestamp}-${index}`}>
                 {columns.map((column) => (
                   <TableCell key={column.key} className="whitespace-nowrap">
-                    {entry[column.key]}
+                    {typeof entry[column.key] === "number" ? (
+                      <BatchReadingValue field={column.key} value={entry[column.key] as number} />
+                    ) : (
+                      entry[column.key]
+                    )}
                   </TableCell>
                 ))}
               </TableRow>
