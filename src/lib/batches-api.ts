@@ -13,6 +13,7 @@ export type BatchDataSyncEntry = {
   effluentPhAIT103: number;
   injectedCo2: number;
   dissolvedCo2: number;
+  energy: number;
   co2Weight: number;
   systemRuntime: string;
   timestamp: string;
@@ -82,6 +83,7 @@ function mapBatchData(dto: BackendBatchDataSyncDto): BatchDataSyncEntry {
     effluentPhAIT103: toNumber(dto.effluentPhAIT103),
     injectedCo2: toNumber(dto.injectedCo2),
     dissolvedCo2: toNumber(dto.dissolvedCo2),
+    energy: toNumber(dto.energy),
     co2Weight: toNumber(co2WeightValue),
     systemRuntime: String(dto.systemRuntime ?? "").trim(),
     timestamp: String(dto.timestamp ?? "").trim(),
