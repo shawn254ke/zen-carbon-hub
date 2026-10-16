@@ -5,13 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Download, FlaskConical, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Download, FlaskConical, Loader2, Search, ChevronLeft } from "lucide-react";
 import { getStoredSession, useAuth } from "@/lib/auth";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { getDefaultDepartments } from "@/lib/evidence-config-api";
@@ -20,12 +21,14 @@ import { fetchBatchesApi, type BatchDataSyncEntry, type BatchSyncItem } from "@/
 import { useProjects } from "@/lib/projects-context";
 
 const DEPARTMENTS = getDefaultDepartments();
+const BATCH_PAGE_SIZE = 10;
 
 type ExtraBatch = {
   id: string;
   projectId: string;
   code: string;
   runDate: string;
+  timestamp?: string;
   finesKg: number;
   coarseKg: number;
   biocharKg?: number;
@@ -50,6 +53,14 @@ function isPlaceholderBatchCode(value: string | null | undefined) {
 
   if (normalized === "b1" || normalized === "batch1") return true;
   return false;
+}
+
+function getExtraBatchTimestamp(batch: ExtraBatch) {
+  if (batch.timestamp) return batch.timestamp;
+  const createdAt = /^bx_(\d+)$/.exec(batch.id)?.[1];
+  if (!createdAt) return undefined;
+  const date = new Date(Number(createdAt));
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function toCsvValue(value: string | number | boolean | null | undefined) {
@@ -393,6 +404,7 @@ function ProjectDetail() {
       id: string;
       code: string;
       runDate: string;
+      timestamp?: string;
       finesKg?: number;
       coarseKg?: number;
       biocharKg?: number;
@@ -405,7 +417,7 @@ function ProjectDetail() {
       apiBatch?: Batch;
     }> = [];
 
-    const pushDistinct = (batch: { id: string; code: string; runDate: string; finesKg?: number; coarseKg?: number; biocharKg?: number; cementKg?: number; waterKg?: number; admixtureKg?: number; status: "complete" | "in_progress" | "failed"; createdBy: string; extra?: ExtraBatch; apiBatch?: Batch; }) => {
+    const pushDistinct = (batch: { id: string; code: string; runDate: string; timestamp?: string; finesKg?: number; coarseKg?: number; biocharKg?: number; cementKg?: number; waterKg?: number; admixtureKg?: number; status: "complete" | "in_progress" | "failed"; createdBy: string; extra?: ExtraBatch; apiBatch?: Batch; }) => {
       const key = normalizeBatchCode(batch.code);
       if (!key || seen.has(key)) return;
       seen.add(key);
@@ -414,7 +426,7 @@ function ProjectDetail() {
 
     projectExtras.forEach((b) => {
       pushDistinct({
-        id: b.id, code: b.code, runDate: b.runDate,
+        id: b.id, code: b.code, runDate: b.runDate, timestamp: getExtraBatchTimestamp(b),
         finesKg: b.finesKg, coarseKg: b.coarseKg, biocharKg: b.biocharKg,
         cementKg: b.cementKg, waterKg: b.waterKg, admixtureKg: b.admixtureKg,
         status: b.status, createdBy: b.createdBy, extra: b, apiBatch: undefined,
@@ -425,6 +437,7 @@ function ProjectDetail() {
       const syncedBatch = syncedBatchesByCode.get(normalizeBatchCode(b.code));
       pushDistinct({
         id: b.id, code: b.code, runDate: b.runDate,
+        timestamp: b.timestamp ?? syncedBatch?.startTime,
         finesKg: syncedBatch?.fines ?? b.fines,
         coarseKg: syncedBatch?.coarse ?? b.coarse,
         biocharKg: undefined,
@@ -447,6 +460,7 @@ function ProjectDetail() {
           id: `sync-${syncedBatch.batchCode}`,
           code: syncedBatch.batchCode,
           runDate: syncedBatch.startTime ? syncedBatch.startTime.slice(0, 10) : "—",
+          timestamp: syncedBatch.startTime,
           finesKg: undefined,
           coarseKg: undefined,
           biocharKg: undefined,
@@ -460,8 +474,35 @@ function ProjectDetail() {
         });
       });
 
-    return merged;
+    return merged.sort((left, right) => {
+      const leftTimestamp = Date.parse(left.timestamp ?? "");
+      const rightTimestamp = Date.parse(right.timestamp ?? "");
+      if (!Number.isFinite(leftTimestamp)) return Number.isFinite(rightTimestamp) ? 1 : 0;
+      if (!Number.isFinite(rightTimestamp)) return -1;
+      return rightTimestamp - leftTimestamp;
+    });
   }, [apiBatches, projectBatchCodes, projectExtras, syncedBatches]);
+  const [batchSearch, setBatchSearch] = useState("");
+  const [batchSortOrder, setBatchSortOrder] = useState("newest");
+  const [batchPage, setBatchPage] = useState(1);
+  const filteredBatches = useMemo(() => {
+    const query = batchSearch.trim().toLowerCase();
+    return allBatches
+      .filter((batch) => !query || batch.code.toLowerCase().includes(query))
+      .sort((left, right) => {
+        const leftTimestamp = Date.parse(left.timestamp ?? "");
+        const rightTimestamp = Date.parse(right.timestamp ?? "");
+        if (!Number.isFinite(leftTimestamp)) return Number.isFinite(rightTimestamp) ? 1 : 0;
+        if (!Number.isFinite(rightTimestamp)) return -1;
+        return batchSortOrder === "newest" ? rightTimestamp - leftTimestamp : leftTimestamp - rightTimestamp;
+      });
+  }, [allBatches, batchSearch, batchSortOrder]);
+  const batchPageCount = Math.max(1, Math.ceil(filteredBatches.length / BATCH_PAGE_SIZE));
+  const currentBatchPage = Math.min(batchPage, batchPageCount);
+  const visibleBatches = filteredBatches.slice(
+    (currentBatchPage - 1) * BATCH_PAGE_SIZE,
+    currentBatchPage * BATCH_PAGE_SIZE,
+  );
   const [addOpen, setAddOpen] = useState(false);
   const labs = project.labResults ?? [];
   const evidence = project.evidences ?? [];
@@ -589,7 +630,7 @@ function ProjectDetail() {
       effluentDissolvedCo2AT102: entry.effluentDissolvedCo2AT102,
       effluentPhAIT103: entry.effluentPhAIT103,
       injectedCo2: entry.injectedCo2,
-      dissolvedCo2: entry.dissolvedCo2,
+      temperature: entry.dissolvedCo2,
       energy: entry.energy,
       co2Weight: entry.co2Weight,
       systemRuntime: entry.systemRuntime,
@@ -692,12 +733,41 @@ function ProjectDetail() {
                       {batchSyncError}
                     </div>
                   )}
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="relative flex-1 sm:max-w-sm">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={batchSearch}
+                        onChange={(event) => {
+                          setBatchSearch(event.target.value);
+                          setBatchPage(1);
+                        }}
+                        placeholder="Search batch code..."
+                        aria-label="Search batches by batch code"
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select
+                      value={batchSortOrder}
+                      onValueChange={(value) => {
+                        setBatchSortOrder(value);
+                        setBatchPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="sm:w-48" aria-label="Sort batches by date">
+                        <SelectValue placeholder="Newest first" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="newest">Newest first</SelectItem>
+                        <SelectItem value="oldest">Oldest first</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-8"></TableHead>
                         <TableHead>Batch</TableHead>
-                        <TableHead>Date</TableHead>
                         <TableHead className="text-right">Fines (kg)</TableHead>
                         <TableHead className="text-right">Coarse (kg)</TableHead>
                         <TableHead className="text-right">Biochar (kg)</TableHead>
@@ -709,11 +779,10 @@ function ProjectDetail() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {allBatches.map((b) => {
+                      {visibleBatches.map((b) => {
                         const isOpen = !!expanded[b.id];
                         const syncedBatch = syncedBatches.find((item) => item.batchCode.trim().toLowerCase() === b.code.trim().toLowerCase());
                         const entries = batchData[b.id] ?? (b.apiBatch ? mapApiBatchToEntries(b.apiBatch, pathway) : []);
-                        const statusLabel = "Complete";
                         return (
                           <Fragment key={b.id}>
                             <TableRow>
@@ -728,7 +797,6 @@ function ProjectDetail() {
                                 </button>
                               </TableCell>
                               <TableCell className="font-medium">{b.code}</TableCell>
-                              <TableCell>{b.runDate}</TableCell>
                               <TableCell className="text-right">{b.finesKg ?? "—"}</TableCell>
                               <TableCell className="text-right">{b.coarseKg ?? "—"}</TableCell>
                               <TableCell className="text-right">{b.biocharKg ?? "—"}</TableCell>
@@ -736,11 +804,11 @@ function ProjectDetail() {
                               <TableCell className="text-right">{b.waterKg ?? "—"}</TableCell>
                               <TableCell className="text-right">{b.admixtureKg ?? "—"}</TableCell>
                               <TableCell>{b.createdBy}</TableCell>
-                              <TableCell><Badge variant="default">{statusLabel}</Badge></TableCell>
+                              <TableCell><Badge variant="default">Complete</Badge></TableCell>
                             </TableRow>
                             {isOpen && (
                               <TableRow className="bg-muted/30 hover:bg-muted/30">
-                                <TableCell colSpan={11} className="p-4">
+                                <TableCell colSpan={10} className="p-4">
                                   {syncedBatch ? (
                                     <SyncedBatchDataPanel
                                       batch={syncedBatch}
@@ -761,11 +829,39 @@ function ProjectDetail() {
                           </Fragment>
                         );
                       })}
-                      {allBatches.length === 0 && (
-                        <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground">No batches yet.</TableCell></TableRow>
+                      {filteredBatches.length === 0 && (
+                        <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground">{allBatches.length === 0 ? "No batches yet." : "No batches match your search or filter."}</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
+                  <div className="mt-4 flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      {filteredBatches.length === 0
+                        ? "0 batches"
+                        : `Showing ${(currentBatchPage - 1) * BATCH_PAGE_SIZE + 1}-${Math.min(currentBatchPage * BATCH_PAGE_SIZE, filteredBatches.length)} of ${filteredBatches.length} batches`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Previous batch page"
+                        disabled={currentBatchPage === 1}
+                        onClick={() => setBatchPage(currentBatchPage - 1)}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="min-w-20 text-center">Page {currentBatchPage} of {batchPageCount}</span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Next batch page"
+                        disabled={currentBatchPage === batchPageCount}
+                        onClick={() => setBatchPage(currentBatchPage + 1)}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
               <Dialog open={entryDialogBatch !== null} onOpenChange={(o) => !o && setEntryDialogBatch(null)}>
@@ -1028,6 +1124,7 @@ function AddBatchDialog({
       projectId,
       code: code.trim(),
       runDate,
+      timestamp: new Date().toISOString(),
       finesKg: Number(fines),
       coarseKg: Number(coarse),
       biocharKg: num(biochar),
@@ -1273,7 +1370,7 @@ function SyncedBatchDataPanel({ batch, onDownload }: { batch: BatchSyncItem; onD
     { key: "effluentDissolvedCo2AT102", label: "Effluent dCO₂ AT102 (ppm)" },
     { key: "effluentPhAIT103", label: "Effluent pH AIT103" },
     { key: "injectedCo2", label: "Injected CO₂ (g)" },
-    { key: "dissolvedCo2", label: "Dissolved CO₂ (ppm)" },
+    { key: "dissolvedCo2", label: "Temperature (°C)" },
     { key: "energy", label: "Energy (kWh)" },
     { key: "co2Weight", label: "CO₂ weight (kg)" },
     { key: "systemRuntime", label: "Runtime (s)" },
