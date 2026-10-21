@@ -5,17 +5,16 @@ import { Badge } from "@/components/ui/badge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { useAuth } from "@/lib/auth";
 import { useProjects } from "@/lib/projects-context";
-import { Factory, Leaf, DollarSign, TrendingDown } from "lucide-react";
+import { Factory, Leaf, DollarSign } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/client")({
   component: ClientDashboard,
 });
 
-// Simple, transparent assumptions for the client-facing view
-const CLINKER_EMISSION_FACTOR_T_CO2_PER_T = 0.9; // tCO2 per tonne of clinker replaced
-const CARBON_CREDIT_PRICE_KES_PER_TCO2 = 150;    // KES/tCO2e
-const CEMENT_MATERIAL_SAVING_KES_PER_T = 80;     // KES/t cement offset
+const REMOVALS_TCO2E = 0.068;
+const CEMENT_SAVINGS_TONNES = 2.7;
+const CEMENT_SAVINGS_VALUE_KES = 38880;
 
 function Stat({
   label,
@@ -56,7 +55,7 @@ function Stat({
 
 function ClientDashboard() {
   const { user } = useAuth();
-  const { projects, kpis } = useProjects();
+  const { projects } = useProjects();
 
   const formatKes = (value: number) =>
     new Intl.NumberFormat("en-KE", {
@@ -65,21 +64,21 @@ function ClientDashboard() {
       maximumFractionDigits: 0,
     }).format(value);
 
-  const removalsTco2e = kpis.totalRemovalsTco2e;
-  const clinkerReplacedTonnes = removalsTco2e / CLINKER_EMISSION_FACTOR_T_CO2_PER_T;
-  const carbonRevenue = removalsTco2e * CARBON_CREDIT_PRICE_KES_PER_TCO2;
-  const materialSavings = clinkerReplacedTonnes * CEMENT_MATERIAL_SAVING_KES_PER_T;
-  const totalSavings = carbonRevenue + materialSavings;
-
   const industrialProjects = projects.filter((p) => p.category === "industrial");
 
-  const trendData = [
-    { month: "Jan", removals: removalsTco2e * 0.08, savings: totalSavings * 0.09 },
-    { month: "Feb", removals: removalsTco2e * 0.12, savings: totalSavings * 0.15 },
-    { month: "Mar", removals: removalsTco2e * 0.15, savings: totalSavings * 0.22 },
-    { month: "Apr", removals: removalsTco2e * 0.18, savings: totalSavings * 0.31 },
-    { month: "May", removals: removalsTco2e * 0.21, savings: totalSavings * 0.43 },
-    { month: "Jun", removals: removalsTco2e * 0.26, savings: totalSavings * 0.58 },
+  const monthlyData = [
+    { month: "Jan", removals: 0.003, savings: 2140 },
+    { month: "Feb", removals: 0.004, savings: 2340 },
+    { month: "Mar", removals: 0.004, savings: 2540 },
+    { month: "Apr", removals: 0.005, savings: 2740 },
+    { month: "May", removals: 0.005, savings: 2940 },
+    { month: "Jun", removals: 0.005, savings: 3140 },
+    { month: "Jul", removals: 0.006, savings: 3340 },
+    { month: "Aug", removals: 0.006, savings: 3540 },
+    { month: "Sep", removals: 0.007, savings: 3740 },
+    { month: "Oct", removals: 0.007, savings: 3940 },
+    { month: "Nov", removals: 0.008, savings: 4140 },
+    { month: "Dec", removals: 0.008, savings: 4340 },
   ];
 
   return (
@@ -93,32 +92,25 @@ function ClientDashboard() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3">
           <Stat
             label="CO₂ removed"
-            value={`${removalsTco2e.toLocaleString()} tCO₂e`}
+            value={`${REMOVALS_TCO2E} tCO₂`}
             hint="Durable carbon storage"
             icon={Leaf}
             accent="green"
           />
           <Stat
-            label="Cement (clinker) replaced"
-            value={`${clinkerReplacedTonnes.toLocaleString(undefined, { maximumFractionDigits: 0 })} t`}
-            hint={`@ ${CLINKER_EMISSION_FACTOR_T_CO2_PER_T} tCO₂ / t clinker`}
+            label="Cement savings"
+            value={`${CEMENT_SAVINGS_TONNES} tonnes`}
+            hint="Material saved"
             icon={Factory}
             accent="primary"
           />
           <Stat
-            label="Emissions avoided in cement"
-            value={`${(clinkerReplacedTonnes * CLINKER_EMISSION_FACTOR_T_CO2_PER_T).toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e`}
-            hint="From clinker substitution"
-            icon={TrendingDown}
-            accent="amber"
-          />
-          <Stat
-            label="Estimated cost savings"
-            value={formatKes(totalSavings)}
-            hint="Credits + material savings"
+            label="Equivalent value"
+            value={formatKes(CEMENT_SAVINGS_VALUE_KES)}
+            hint="Cement savings value"
             icon={DollarSign}
             accent="green"
           />
@@ -128,27 +120,27 @@ function ClientDashboard() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Process overview</CardTitle>
-              <CardDescription>Trend lines for removals and estimated savings</CardDescription>
+              <CardDescription>Illustrative monthly removals and savings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">CO2 removals (tCO2e)</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">CO₂ removals (tonnes CO₂e)</div>
                 <ChartContainer
                   className="h-56 w-full"
                   config={{
                     removals: {
-                      label: "CO2 removed",
+                      label: "CO₂ removed (tonnes)",
                       color: "hsl(var(--primary))",
                     },
                   }}
                 >
-                  <LineChart data={trendData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+                  <LineChart data={monthlyData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />
                     <YAxis
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                      tickFormatter={(value) => `${Number(value).toFixed(3)} t`}
                     />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Line
@@ -174,7 +166,7 @@ function ClientDashboard() {
                     },
                   }}
                 >
-                  <LineChart data={trendData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+                  <LineChart data={monthlyData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
                     <CartesianGrid vertical={false} strokeDasharray="3 3" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />
                     <YAxis
@@ -196,7 +188,7 @@ function ClientDashboard() {
               </div>
 
               <div className="text-[11px] text-muted-foreground leading-relaxed">
-                Monthly points are distributed from current totals to visualize trend direction for client reporting.
+                Illustrative monthly values for presentation; monthly removals total {REMOVALS_TCO2E} tonnes CO₂e and savings total {formatKes(CEMENT_SAVINGS_VALUE_KES)}.
               </div>
             </CardContent>
           </Card>
@@ -204,25 +196,19 @@ function ClientDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Savings breakdown</CardTitle>
-              <CardDescription>How the KES value is calculated</CardDescription>
+              <CardDescription>Reported cement savings and equivalent value</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-md border p-3">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Carbon credits</div>
-                <div className="text-lg font-semibold mt-1">{formatKes(carbonRevenue)}</div>
-                <div className="text-xs text-muted-foreground">{removalsTco2e.toLocaleString()} tCO₂e × KES {CARBON_CREDIT_PRICE_KES_PER_TCO2}/t</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Cement saved</div>
+                <div className="text-lg font-semibold mt-1">{CEMENT_SAVINGS_TONNES} tonnes</div>
               </div>
               <div className="rounded-md border p-3">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Material savings</div>
-                <div className="text-lg font-semibold mt-1">{formatKes(materialSavings)}</div>
-                <div className="text-xs text-muted-foreground">{clinkerReplacedTonnes.toLocaleString(undefined, { maximumFractionDigits: 0 })} t clinker × KES {CEMENT_MATERIAL_SAVING_KES_PER_T}/t</div>
-              </div>
-              <div className="rounded-md border p-3 bg-primary/5">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Total</div>
-                <div className="text-2xl font-semibold mt-1 text-primary">{formatKes(totalSavings)}</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Equivalent value</div>
+                <div className="text-lg font-semibold mt-1">{formatKes(CEMENT_SAVINGS_VALUE_KES)}</div>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Illustrative figures based on posted market prices and standard clinker emission factors. Final settlement values follow the verified MRV report.
+                Cement savings value is reported as KES 38,880.
               </p>
             </CardContent>
           </Card>
