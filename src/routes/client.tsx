@@ -13,7 +13,7 @@ export const Route = createFileRoute("/client")({
 });
 
 const REMOVALS_TCO2E = 0.068;
-const CEMENT_SAVINGS_TONNES = 2.7;
+const CEMENT_SAVINGS_KG = 68.4;
 const CEMENT_SAVINGS_VALUE_KES = 38880;
 
 function Stat({
@@ -102,7 +102,7 @@ function ClientDashboard() {
           />
           <Stat
             label="Cement savings"
-            value={`${CEMENT_SAVINGS_TONNES} tonnes`}
+            value={`${CEMENT_SAVINGS_KG} kg`}
             hint="Material saved"
             icon={Factory}
             accent="primary"
@@ -201,7 +201,7 @@ function ClientDashboard() {
             <CardContent className="space-y-4">
               <div className="rounded-md border p-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Cement saved</div>
-                <div className="text-lg font-semibold mt-1">{CEMENT_SAVINGS_TONNES} tonnes</div>
+                <div className="text-lg font-semibold mt-1">{CEMENT_SAVINGS_KG} kg</div>
               </div>
               <div className="rounded-md border p-3">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Equivalent value</div>
@@ -228,7 +228,12 @@ function ClientDashboard() {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-medium">{(p.emissionsAvoidedTco2e ?? 0).toLocaleString()} tCO₂e</div>
-                  <Badge variant="secondary" className="mt-1 capitalize">{p.status}</Badge>
+                  <div className="mt-1 flex justify-end gap-1">
+                    {p.name.toLowerCase().includes("flamingo") && (
+                      <Badge variant="secondary">0.068 tCO₂</Badge>
+                    )}
+                    <Badge variant="secondary" className="capitalize">{p.status}</Badge>
+                  </div>
                 </div>
               </div>
             ))}

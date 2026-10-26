@@ -503,6 +503,30 @@ function ProjectDetail() {
     (currentBatchPage - 1) * BATCH_PAGE_SIZE,
     currentBatchPage * BATCH_PAGE_SIZE,
   );
+  const latestOperationBatch = allBatches[0];
+  const latestOperationSyncedBatch = latestOperationBatch
+    ? syncedBatches.find((batch) => normalizeBatchCode(batch.batchCode) === normalizeBatchCode(latestOperationBatch.code))
+    : undefined;
+  const latestOperationReading = latestOperationSyncedBatch?.batchData.reduce<BatchDataSyncEntry | undefined>(
+    (latest, entry) => {
+      if (!latest) return entry;
+      const entryTimestamp = Date.parse(entry.timestamp);
+      const latestTimestamp = Date.parse(latest.timestamp);
+      if (!Number.isFinite(entryTimestamp)) return Number.isFinite(latestTimestamp) ? latest : entry;
+      if (!Number.isFinite(latestTimestamp) || entryTimestamp > latestTimestamp) return entry;
+      return latest;
+    },
+    undefined,
+  );
+  const formatOperationValue = (value: number | undefined, unit: string) =>
+    Number.isFinite(value)
+      ? `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ""}`
+      : "—";
+  const averagePh = latestOperationReading
+    ? (latestOperationReading.influentPhAIT101 + latestOperationReading.effluentPhAIT103) / 2
+    : latestOperationBatch?.apiBatch?.initialPh != null && latestOperationBatch.apiBatch.finalPh != null
+      ? (latestOperationBatch.apiBatch.initialPh + latestOperationBatch.apiBatch.finalPh) / 2
+      : undefined;
   const [addOpen, setAddOpen] = useState(false);
   const labs = project.labResults ?? [];
   const evidence = project.evidences ?? [];
@@ -690,15 +714,40 @@ function ProjectDetail() {
             <Card>
               <CardHeader>
                 <CardTitle>Operational sensor data</CardTitle>
-                <CardDescription>Latest readings and process telemetry.</CardDescription>
+                <CardDescription>
+                  Latest readings from batch {latestOperationBatch?.code ?? "—"}
+                  {latestOperationReading?.timestamp ? ` · ${latestOperationReading.timestamp}` : ""}
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
-                <SensorTile label="Injected CO₂" value="0.001 tCO₂e" trend="stable" />
-                <SensorTile label="Dissolved CO₂" value="0.0005 ppm" trend="↑ 2%" />
-                <SensorTile label="Residence time" value="24 min" trend="stable" />
-                <SensorTile label="Pressure" value="1.2 bar" trend="↓ 0.3" />
-                <SensorTile label="Temperature" value="380 °C" trend="stable" />
-                <SensorTile label="Avg PH" value="5.4" trend="↑" />
+                <SensorTile
+                  label="Injected CO₂"
+                  value={formatOperationValue(latestOperationReading?.injectedCo2 ?? latestOperationBatch?.apiBatch?.co2Injected, "g")}
+                />
+                <SensorTile
+                  label="Dissolved CO₂"
+                  value={formatOperationValue(
+                    latestOperationReading?.effluentDissolvedCo2AT102 ??
+                      latestOperationReading?.dissolvedCo2 ??
+                      latestOperationBatch?.apiBatch?.dissolvedCo2,
+                    "ppm",
+                  )}
+                />
+                <SensorTile label="Residence time" value={latestOperationReading?.systemRuntime || "—"} />
+                <SensorTile
+                  label="Pressure"
+                  value={formatOperationValue(latestOperationReading?.influentPressurePT101, "bar")}
+                />
+                <SensorTile
+                  label="Temperature"
+                  value={formatOperationValue(
+                    latestOperationBatch?.apiBatch?.initialTemp != null && latestOperationBatch.apiBatch.finalTemp != null
+                      ? (latestOperationBatch.apiBatch.initialTemp + latestOperationBatch.apiBatch.finalTemp) / 2
+                      : undefined,
+                    "°C",
+                  )}
+                />
+                <SensorTile label="Avg pH" value={formatOperationValue(averagePh, "")} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -1080,12 +1129,11 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SensorTile({ label, value, trend }: { label: string; value: string; trend: string }) {
+function SensorTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold mt-1">{value}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{trend}</div>
     </div>
   );
 }
@@ -1370,7 +1418,7 @@ function SyncedBatchDataPanel({ batch, onDownload }: { batch: BatchSyncItem; onD
     { key: "effluentDissolvedCo2AT102", label: "Effluent dCO₂ AT102 (ppm)" },
     { key: "effluentPhAIT103", label: "Effluent pH AIT103" },
     { key: "injectedCo2", label: "Injected CO₂ (g)" },
-    { key: "dissolvedCo2", label: "Temperature (°C)" },
+    { key: "dissolvedCo2", label: "Dissolved CO₂ (ppm)" },
     { key: "energy", label: "Energy (kWh)" },
     { key: "co2Weight", label: "CO₂ weight (kg)" },
     { key: "systemRuntime", label: "Runtime (s)" },

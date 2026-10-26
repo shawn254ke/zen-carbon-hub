@@ -35,6 +35,7 @@ export type BatchSyncItem = {
 
 type BackendBatchDataSyncDto = Partial<BatchDataSyncEntry> & {
   Co2weight?: string | number | null;
+  co2weight?: string | number | null;
   co2Weight?: string | number | null;
 };
 type BackendBatchSyncDto = {
@@ -68,7 +69,7 @@ function toOptionalNumber(value: string | number | null | undefined) {
 }
 
 function mapBatchData(dto: BackendBatchDataSyncDto): BatchDataSyncEntry {
-  const co2WeightValue = dto.co2Weight ?? dto.Co2weight ?? dto.co2Weight ?? 0;
+  const co2WeightValue = dto.co2Weight ?? dto.co2weight ?? dto.Co2weight ?? 0;
 
   return {
     totalWaterVolume: toNumber(dto.totalWaterVolume),
