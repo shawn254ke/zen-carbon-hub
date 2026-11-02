@@ -845,7 +845,7 @@ function UploadLabResultDialog({
   labs,
   onSubmit,
 }: {
-  projects: Array<{ id: string; code: string; name: string; batch?: Array<{ id: string; code: string }> }>;
+  projects: Array<{ id: string; code: string; name: string; batch?: Array<{ id: string; backendId?: string; code: string }> }>;
   labs: Array<{ id: string; name: string }>;
   onSubmit: (payload: UploadLaboratoryResultPayload) => Promise<void>;
 }) {
@@ -921,7 +921,17 @@ function UploadLabResultDialog({
               onChange={(e) => setBatchId(e.target.value)}
             >
               <option value="">—</option>
-              {batches.map((batch) => <option key={batch.id} value={batch.id}>{batch.code}</option>)}
+              {batches.length === 0
+                ? <option value="" disabled>No batches available</option>
+                : batches.map((batch) => (
+                    <option
+                      key={batch.id}
+                      value={batch.backendId ?? `unavailable-${batch.id}`}
+                      disabled={!batch.backendId}
+                    >
+                      {batch.code}{batch.backendId ? "" : " (backend ID unavailable)"}
+                    </option>
+                  ))}
             </select>
           </div>
         </div>

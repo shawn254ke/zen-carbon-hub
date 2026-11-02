@@ -34,14 +34,13 @@ import { useAuth } from "@/lib/auth";
 import { expireSession } from "@/lib/auth";
 import {
   deleteProjectApi,
-  fetchProjectsApi,
-  getProjectsCache,
   removeProjectFromCache,
   type Project,
   type ProjectCategory,
   updateProjectApi,
   upsertProjectCache,
 } from "@/lib/projects-api";
+import { useProjects } from "@/lib/projects-context";
 
 type CreateProjectPayload = {
   name: string;
@@ -151,55 +150,11 @@ type ViewMode = "grid" | "table";
 function ProjectsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { can } = useAuth();
-  const [projects, setProjects] = useState<Project[]>(() => getProjectsCache());
+  const { projects, isLoading, error: loadError, refresh: refreshProjects } = useProjects();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [view, setView] = useState<ViewMode>("grid");
   const [tab, setTab] = useState<ProjectCategory>("industrial");
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadProjects = async () => {
-      setIsLoading(true);
-      try {
-        const nextProjects = await fetchProjectsApi();
-        if (!cancelled) {
-          setProjects(nextProjects);
-          setLoadError(null);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setProjects(getProjectsCache());
-          setLoadError(error instanceof Error ? error.message : "Unable to load projects.");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void loadProjects();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const refreshProjects = async () => {
-    try {
-      const nextProjects = await fetchProjectsApi();
-      setProjects(nextProjects);
-      setLoadError(null);
-    } catch (error) {
-      setProjects(getProjectsCache());
-      setLoadError(error instanceof Error ? error.message : "Unable to load projects.");
-    }
-  };
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return projects.filter((p) => p.category === tab)

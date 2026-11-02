@@ -67,15 +67,11 @@ function useEvidenceItems() {
 
 function EvidencePage() {
   const canUploadFor = useCanUploadFor();
-  const { departments, error: checklistError, isLoading: isChecklistLoading, refresh: refreshChecklist, getChecklistForProject } = useChecklist();
+  const { departments, error: checklistError, isLoading: isChecklistLoading, getChecklistForProject } = useChecklist();
   const { items: evidenceItems, isLoading: isEvidenceLoading, error: evidenceError, reload: reloadEvidence } = useEvidenceItems();
   const { projects, isLoading: isProjectsLoading, error: projectsError } = useProjects();
   const [projectId, setProjectId] = useState<string>("");
   const checklist = getChecklistForProject(projectId);
-
-  useEffect(() => {
-    void refreshChecklist();
-  }, [refreshChecklist]);
 
   useEffect(() => {
     if (projects.length > 0 && !projects.some((project) => project.id === projectId)) {

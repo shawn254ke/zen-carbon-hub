@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useAuth } from "@/lib/auth";
 import {
   fetchProjectsApi,
   getProjectsCache,
@@ -39,6 +40,7 @@ type ProjectsContextValue = {
 const ProjectsContext = createContext<ProjectsContextValue | null>(null);
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated, isAuthReady } = useAuth();
   const [projects, setProjects] = useState<Project[]>(() => getProjectsCache());
   const [isLoading, setIsLoading] = useState<boolean>(getProjectsCache().length === 0);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +60,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!isAuthReady) return;
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [isAuthReady, isAuthenticated, refresh]);
 
   const evidence = useMemo(
     () => projects.flatMap((project) => project.evidences ?? []),

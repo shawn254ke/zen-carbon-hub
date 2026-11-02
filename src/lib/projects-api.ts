@@ -66,6 +66,7 @@ export type EmissionActivity = {
 
 export type Batch = {
   id: string;
+  backendId?: string;
   projectId: string;
   code: string;
   runDate: string;
@@ -257,6 +258,7 @@ type BackendLabAnalysisDto = {
 };
 
 let projectsCache: Project[] = [];
+const projectsRequests = new Map<string, Promise<Project[]>>();
 
 function getProjectsEndpoints() {
   const base = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -443,8 +445,10 @@ function mapBatches(items: BackendBatchDto[] | null | undefined, projectId: stri
     .filter((item) => String(item.batchNumber ?? item.batchCode ?? item.code ?? "").trim().length > 0)
     .map((item, index) => {
       const batchNumber = String(item.batchNumber ?? item.batchCode ?? item.code ?? "").trim();
+      const backendId = item.id == null ? "" : String(item.id).trim();
       return {
         id: String(item.id ?? `b_${projectId}_${index}`),
+        backendId: /^\d+$/.test(backendId) ? backendId : undefined,
         projectId: String(item.projectId ?? projectId),
         code: batchNumber,
         runDate: (item.timestamp ?? "—").slice(0, 10),
@@ -567,7 +571,7 @@ export function removeProjectFromCache(projectId: string) {
   return projectsCache;
 }
 
-export async function fetchProjectsApi(token?: string | null) {
+async function fetchProjectsApiUnshared(token?: string | null) {
   const authToken = token ?? getStoredSession().token;
   const endpoints = getProjectsEndpoints();
 
@@ -596,6 +600,22 @@ export async function fetchProjectsApi(token?: string | null) {
   }
 
   throw lastError ?? new Error("Unable to load projects");
+}
+
+export function fetchProjectsApi(token?: string | null): Promise<Project[]> {
+  const authToken = token ?? getStoredSession().token;
+  const requestKey = authToken ?? "";
+  const existingRequest = projectsRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = fetchProjectsApiUnshared(authToken);
+  const trackedRequest = request.finally(() => {
+    if (projectsRequests.get(requestKey) === trackedRequest) {
+      projectsRequests.delete(requestKey);
+    }
+  });
+  projectsRequests.set(requestKey, trackedRequest);
+  return trackedRequest;
 }
 
 export async function updateProjectApi(

@@ -615,49 +615,48 @@ function ProjectDetail() {
 
   const buildLocalBatchCsvRows = (batchCode: string, runDate: string, entries: BatchDataEntry[], currentPathway: Pathway) =>
     entries.map((entry) => {
-      const base = { batchCode, runDate, timestamp: entry.timestamp };
+      const base = { batchCode, timestamp: entry.timestamp };
       if (currentPathway === "liquid_co2") {
-        return { ...base, co2InjectedG: (entry as LiquidCo2Entry).co2InjectedG };
+        return { ...base, "CO₂ injected (g)": (entry as LiquidCo2Entry).co2InjectedG };
       }
 
       const carbon = entry as CarbonatedWaterEntry;
       return {
         ...base,
-        waterUsed: carbon.waterUsed,
-        initialPh: carbon.initialPh,
-        finalPh: carbon.finalPh,
-        initialDissolvedCo2: carbon.initialDissolvedCo2,
-        finalDissolvedCo2: carbon.finalDissolvedCo2,
-        initialTemp: carbon.initialTemp,
-        finalTemp: carbon.finalTemp,
-        initialPressure: carbon.initialPressure,
-        finalPressure: carbon.finalPressure,
-        initialFlowRate: carbon.initialFlowRate,
-        finalFlowRate: carbon.finalFlowRate,
-        energyUsed: carbon.energyUsed,
+        "Water used (m³)": carbon.waterUsed,
+        "Initial pH": carbon.initialPh,
+        "Final pH": carbon.finalPh,
+        "Initial dCO₂ (ppm)": carbon.initialDissolvedCo2,
+        "Final dCO₂ (ppm)": carbon.finalDissolvedCo2,
+        "Initial T (°C)": carbon.initialTemp,
+        "Final T (°C)": carbon.finalTemp,
+        "Initial P (bars)": carbon.initialPressure,
+        "Final P (bars)": carbon.finalPressure,
+        "Initial flow (l/min)": carbon.initialFlowRate,
+        "Final flow (l/min)": carbon.finalFlowRate,
+        "Energy (kWh)": carbon.energyUsed,
       };
     });
 
   const buildSyncedBatchCsvRows = (batch: BatchSyncItem, fallbackRunDate: string) =>
     batch.batchData.map((entry, index) => ({
       batchCode: batch.batchCode,
-      runDate: batch.startTime ? batch.startTime.slice(0, 10) : fallbackRunDate,
-      entry: index + 1,
-      totalWaterVolume: entry.totalWaterVolume,
-      influentPressurePT101: entry.influentPressurePT101,
-      influentFlowRateFT101: entry.influentFlowRateFT101,
-      influentPhAIT101: entry.influentPhAIT101,
-      influentDissolvedCo2AT101: entry.influentDissolvedCo2AT101,
-      co2MassFlowFIT101: entry.co2MassFlowFIT101,
-      effluentFlowFT102: entry.effluentFlowFT102,
-      effluentFlowFT103: entry.effluentFlowFT103,
-      effluentDissolvedCo2AT102: entry.effluentDissolvedCo2AT102,
-      effluentPhAIT103: entry.effluentPhAIT103,
-      injectedCo2: entry.injectedCo2,
-      temperature: entry.dissolvedCo2,
-      energy: entry.energy,
-      co2Weight: entry.co2Weight,
-      systemRuntime: entry.systemRuntime,
+      "Entry": index + 1,
+      "Water volume (l)": entry.totalWaterVolume,
+      "Influent pressure PT101 (bars)": entry.influentPressurePT101,
+      "Influent flow FT101 (l/min)": entry.influentFlowRateFT101,
+      "Influent pH AIT101": entry.influentPhAIT101,
+      "Influent dCO₂ AT101 (ppm)": entry.influentDissolvedCo2AT101,
+      "CO₂ mass flow FIT101 (g/min)": entry.co2MassFlowFIT101,
+      "Effluent flow FT102 (l/min)": entry.effluentFlowFT102,
+      "Effluent flow FT103 (l/min)": entry.effluentFlowFT103,
+      "Effluent dCO₂ AT102 (ppm)": entry.effluentDissolvedCo2AT102,
+      "Effluent pH AIT103": entry.effluentPhAIT103,
+      "Injected CO₂ (g)": entry.injectedCo2,
+      "Dissolved CO₂ (ppm)": entry.dissolvedCo2,
+      "Energy (kWh)": entry.energy,
+      "CO₂ weight (kg)": entry.co2Weight,
+      "Runtime (s)": entry.systemRuntime,
       timestamp: entry.timestamp,
     }));
 

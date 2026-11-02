@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   createEvidenceChecklistApi,
   deleteEvidenceChecklistApi,
@@ -24,6 +24,7 @@ type Ctx = {
   getChecklistForProject: (projectId: string) => ChecklistMap;
   isLoading: boolean;
   error: string | null;
+  ensureLoaded: () => Promise<void>;
   refresh: () => Promise<void>;
   addItem: (dept: Department, item: string, projectId?: string) => Promise<void>;
   removeItem: (dept: Department, item: string, projectId?: string) => Promise<void>;
@@ -85,55 +86,37 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
   const [entries, setEntries] = useState<ChecklistEntryMap>(() => getDefaultChecklistEntries());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoaded = useRef(false);
+  const pendingLoad = useRef<Promise<void> | null>(null);
 
-  const loadConfig = useCallback(async () => {
+  const loadConfig = useCallback((force = false) => {
+    if (!force && hasLoaded.current) return Promise.resolve();
+    if (pendingLoad.current) return pendingLoad.current;
+
     setIsLoading(true);
-    try {
-      const nextDepartments = await fetchDepartmentsApi();
-      const nextEntries = await fetchEvidenceChecklistsApi(nextDepartments);
-
-      setDepartments(nextDepartments);
-      setEntries((prev) => mergeEntriesUnique(mergeChecklistEntries(nextEntries), flattenEntries(prev)));
-      setError(null);
-    } catch (loadError) {
-      setDepartments(getDefaultDepartments());
-      setError(loadError instanceof Error ? loadError.message : "Unable to load departments and checklists.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const runLoadConfig = async () => {
+    const request = Promise.resolve().then(async () => {
       try {
         const nextDepartments = await fetchDepartmentsApi();
         const nextEntries = await fetchEvidenceChecklistsApi(nextDepartments);
 
-        if (!cancelled) {
-          setDepartments(nextDepartments);
-          setEntries((prev) => mergeEntriesUnique(mergeChecklistEntries(nextEntries), flattenEntries(prev)));
-          setError(null);
-        }
+        setDepartments(nextDepartments);
+        setEntries((prev) => mergeEntriesUnique(mergeChecklistEntries(nextEntries), flattenEntries(prev)));
+        setError(null);
+        hasLoaded.current = true;
       } catch (loadError) {
-        if (!cancelled) {
-          setDepartments(getDefaultDepartments());
-          setError(loadError instanceof Error ? loadError.message : "Unable to load departments and checklists.");
-        }
+        setDepartments(getDefaultDepartments());
+        setError(loadError instanceof Error ? loadError.message : "Unable to load departments and checklists.");
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
+        pendingLoad.current = null;
       }
-    };
-
-    void runLoadConfig();
-
-    return () => {
-      cancelled = true;
-    };
+    });
+    pendingLoad.current = request;
+    return request;
   }, []);
+
+  const ensureLoaded = useCallback(() => loadConfig(), [loadConfig]);
+  const refresh = useCallback(() => loadConfig(true), [loadConfig]);
 
   useEffect(() => {
     const derivedEntries = deriveChecklistEntriesFromProjects(projects);
@@ -252,12 +235,16 @@ export function ChecklistProvider({ children }: { children: ReactNode }) {
     }
   }, [entries, getDepartmentInfo]);
 
-  const value = useMemo(() => ({ departments, checklist, getChecklistForProject, isLoading, error, refresh: loadConfig, addItem, removeItem, renameItem }), [departments, checklist, getChecklistForProject, isLoading, error, loadConfig, addItem, removeItem, renameItem]);
+  const value = useMemo(() => ({ departments, checklist, getChecklistForProject, isLoading, error, ensureLoaded, refresh, addItem, removeItem, renameItem }), [departments, checklist, getChecklistForProject, isLoading, error, ensureLoaded, refresh, addItem, removeItem, renameItem]);
   return <ChecklistCtx.Provider value={value}>{children}</ChecklistCtx.Provider>;
 }
 
 export function useChecklist() {
   const v = useContext(ChecklistCtx);
   if (!v) throw new Error("useChecklist must be used within ChecklistProvider");
+  const { ensureLoaded } = v;
+  useEffect(() => {
+    void ensureLoaded();
+  }, [ensureLoaded]);
   return v;
 }
