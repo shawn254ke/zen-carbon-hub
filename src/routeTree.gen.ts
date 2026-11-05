@@ -19,6 +19,7 @@ import { Route as LabResultsRouteImport } from './routes/lab-results'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as TendersRouteImport } from './routes/tenders'
 import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 
@@ -72,6 +73,11 @@ const ProjectsRoute = ProjectsRouteImport.update({
   path: '/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TendersRoute = TendersRouteImport.update({
+  id: '/tenders',
+  path: '/tenders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerificationRoute = VerificationRouteImport.update({
   id: '/verification',
   path: '/verification',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
+  '/tenders': typeof TendersRoute
   '/verification': typeof VerificationRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
+  '/tenders': typeof TendersRoute
   '/verification': typeof VerificationRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/projects': typeof ProjectsRouteWithChildren
+  '/tenders': typeof TendersRoute
   '/verification': typeof VerificationRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
 }
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/projects'
+    | '/tenders'
     | '/verification'
     | '/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/projects'
+    | '/tenders'
     | '/verification'
     | '/projects/$projectId'
   id:
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/projects'
+    | '/tenders'
     | '/verification'
     | '/projects/$projectId'
   fileRoutesById: FileRoutesById
@@ -182,6 +194,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   ProjectsRoute: typeof ProjectsRouteWithChildren
+  TendersRoute: typeof TendersRoute
   VerificationRoute: typeof VerificationRoute
 }
 
@@ -257,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenders': {
+      id: '/tenders'
+      path: '/tenders'
+      fullPath: '/tenders'
+      preLoaderRoute: typeof TendersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verification': {
       id: '/verification'
       path: '/verification'
@@ -297,6 +317,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   ProjectsRoute: ProjectsRouteWithChildren,
+  TendersRoute: TendersRoute,
   VerificationRoute: VerificationRoute,
 }
 export const routeTree = rootRouteImport

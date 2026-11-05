@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download, FlaskConical, Paperclip, Loader2 } from "lucide-react";
+import { Upload, Plus, FileText, Trash2, Building2, Mail, Phone, MapPin, Download, FlaskConical, Paperclip, Loader2, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   deleteLaboratoryDocumentApi,
   downloadLaboratoryDocumentApi,
   fetchLaboratoriesApi,
+  updateLaboratoryApi,
   uploadLaboratoryDocumentApi,
   type CreateLaboratoryPayload,
 } from "@/lib/laboratories-api";
@@ -120,6 +121,11 @@ function useLabs() {
     await refresh();
   };
 
+  const updateLab = async (id: string, payload: CreateLaboratoryPayload) => {
+    await updateLaboratoryApi(id, payload);
+    await refresh();
+  };
+
   const removeLab = async (id: string) => {
     await deleteLaboratoryApi(id);
     await refresh();
@@ -156,7 +162,7 @@ function useLabs() {
     }
   };
 
-  return { labs, isLoading, error, refresh, createLab, removeLab, addDoc, removeDoc, downloadDoc };
+  return { labs, isLoading, error, refresh, createLab, updateLab, removeLab, addDoc, removeDoc, downloadDoc };
 }
 
 function LabResultsPage() {
@@ -368,8 +374,9 @@ function LabResultsPage() {
 }
 
 function RegisteredLabs({ canManage }: { canManage: boolean }) {
-  const { labs, isLoading, error, refresh, createLab, removeLab, addDoc, removeDoc, downloadDoc } = useLabs();
+  const { labs, isLoading, error, refresh, createLab, updateLab, removeLab, addDoc, removeDoc, downloadDoc } = useLabs();
   const [open, setOpen] = useState(false);
+  const [editingLab, setEditingLab] = useState<Lab | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
@@ -387,10 +394,25 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-1" /> Register lab</Button>
           </DialogTrigger>
-          <RegisterLabDialog onSubmit={async (payload) => {
+          <LabDialog onSubmit={async (payload) => {
             await createLab(payload);
             setOpen(false);
           }} />
+        </Dialog>
+        <Dialog open={editingLab !== null} onOpenChange={(isOpen) => {
+          if (!isOpen) setEditingLab(null);
+        }}>
+          {editingLab && (
+            <LabDialog
+              key={editingLab.id}
+              lab={editingLab}
+              onSubmit={async (payload) => {
+                await updateLab(editingLab.id, payload);
+                toast.success("Laboratory updated");
+                setEditingLab(null);
+              }}
+            />
+          )}
         </Dialog>
       </div>
 
@@ -424,25 +446,35 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
                   )}
                 </div>
                 {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={deletingId === lab.id}
-                    onClick={async () => {
-                      setDeletingId(lab.id);
-                      try {
-                        await removeLab(lab.id);
-                        toast.success("Laboratory removed");
-                      } catch (removeError) {
-                        toast.error(removeError instanceof Error ? removeError.message : "Unable to remove laboratory.");
-                      } finally {
-                        setDeletingId(null);
-                      }
-                    }}
-                    aria-label="Remove lab"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditingLab(lab)}
+                      aria-label={`Edit ${lab.name}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={deletingId === lab.id}
+                      onClick={async () => {
+                        setDeletingId(lab.id);
+                        try {
+                          await removeLab(lab.id);
+                          toast.success("Laboratory removed");
+                        } catch (removeError) {
+                          toast.error(removeError instanceof Error ? removeError.message : "Unable to remove laboratory.");
+                        } finally {
+                          setDeletingId(null);
+                        }
+                      }}
+                      aria-label="Remove lab"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -539,9 +571,14 @@ function RegisteredLabs({ canManage }: { canManage: boolean }) {
   );
 }
 
-function RegisterLabDialog({ onSubmit }: { onSubmit: (payload: CreateLaboratoryPayload) => Promise<void> }) {
+function LabDialog({ lab, onSubmit }: { lab?: Lab; onSubmit: (payload: CreateLaboratoryPayload) => Promise<void> }) {
   const [form, setForm] = useState({
-    name: "", contactPerson: "", email: "", phone: "", address: "", notes: "",
+    name: lab?.name ?? "",
+    contactPerson: lab?.contactPerson ?? "",
+    email: lab?.email ?? "",
+    phone: lab?.phone ?? "",
+    address: lab?.address ?? "",
+    notes: lab?.notes ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -551,8 +588,10 @@ function RegisterLabDialog({ onSubmit }: { onSubmit: (payload: CreateLaboratoryP
   return (
     <DialogContent className="max-w-lg">
       <DialogHeader>
-        <DialogTitle>Register a laboratory</DialogTitle>
-        <DialogDescription>Add lab contacts. You can upload compliance documents after creating the record.</DialogDescription>
+        <DialogTitle>{lab ? "Edit laboratory" : "Register a laboratory"}</DialogTitle>
+        <DialogDescription>
+          {lab ? "Update the laboratory's contact and registration details." : "Add lab contacts. You can upload compliance documents after creating the record."}
+        </DialogDescription>
       </DialogHeader>
       <div className="grid gap-3">
         <div className="grid gap-1.5">
@@ -599,13 +638,13 @@ function RegisterLabDialog({ onSubmit }: { onSubmit: (payload: CreateLaboratoryP
               notes: form.notes || undefined,
               });
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Unable to register laboratory.");
+              setError(err instanceof Error ? err.message : `Unable to ${lab ? "update" : "register"} laboratory.`);
             } finally {
               setBusy(false);
             }
           }}
         >
-          {busy ? "Saving…" : "Save lab"}
+          {busy ? "Saving…" : lab ? "Save changes" : "Save lab"}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -987,7 +1026,7 @@ function UploadLabResultDialog({
                 setFile(selectedFile);
                 setFileName(selectedFile?.name ?? "");
               }}
-            />
+            />                                         
           </div>
         </div>
         {fileName && <p className="text-xs text-muted-foreground">Selected report: {fileName}</p>}
