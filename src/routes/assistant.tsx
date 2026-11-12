@@ -1,6 +1,6 @@
 import { ChatMarkdown } from "@/components/chat-markdown";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfWeek } from "date-fns";
 import {
   AlertCircle,
@@ -370,6 +370,22 @@ function AssistantPage() {
     () => format(addDays(new Date(`${weekStart}T12:00:00`), 4), "yyyy-MM-dd"),
     [weekStart],
   );
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const questionRef = useRef<HTMLTextAreaElement>(null);
+
+  // Keep the newest message (including streamed tokens) in view.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+
+  // Grow the composer with its content, up to a cap, instead of a manual resize handle.
+  useEffect(() => {
+    const field = questionRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(field.scrollHeight, 160)}px`;
+  }, [question]);
 
   const sendQuestion = async () => {
     const text = question.trim();
@@ -742,14 +758,14 @@ function AssistantPage() {
 
   return (
     <AppShell title="AI Assistant">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
         <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="hidden items-center gap-2 text-sm text-muted-foreground sm:flex">
             <Sparkles className="h-4 w-4 text-primary" />
             Your workplace copilot
           </div>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">AI Assistant</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className="text-xl font-semibold tracking-tight sm:mt-1 sm:text-2xl">AI Assistant</h2>
+          <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
             Find answers in company documents or prepare and report your weekly work.
           </p>
         </div>
@@ -757,36 +773,55 @@ function AssistantPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid h-auto w-full max-w-lg grid-cols-2">
             <TabsTrigger value="documents" className="gap-2 py-2">
-              <MessageCircle className="h-4 w-4" /> Ask company documents
+              <MessageCircle className="h-4 w-4" />
+              <span className="sm:hidden">Ask documents</span>
+              <span className="hidden sm:inline">Ask company documents</span>
             </TabsTrigger>
             <TabsTrigger value="planner" className="gap-2 py-2">
-              <FileText className="h-4 w-4" /> Planner & report
+              <FileText className="h-4 w-4" />
+              <span className="sm:hidden">Planner</span>
+              <span className="hidden sm:inline">Planner & report</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="documents" className="mt-5">
-            <Card className="flex h-[min(72vh,760px)] min-h-[540px] flex-col overflow-hidden">
-              <CardHeader className="border-b bg-card">
+          <TabsContent value="documents" className="mt-3 sm:mt-5">
+            {/* On phones the card runs edge to edge (cancelling the shell's p-6) and fills the
+                remaining screen height; from sm up it is a regular card. */}
+            <Card className="-mx-6 flex h-[calc(100dvh-13rem)] min-h-105 flex-col overflow-hidden rounded-none border-x-0 sm:mx-0 sm:h-[min(72vh,760px)] sm:min-h-135 sm:rounded-xl sm:border-x">
+              <CardHeader className="border-b bg-card px-4 py-3 sm:p-6">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:h-10 sm:w-10">
                     <Bot className="h-5 w-5" />
                   </div>
-                  <div>
-                    <CardTitle className="text-base">Company knowledge assistant</CardTitle>
-                    <CardDescription>
+                  <div className="min-w-0">
+                    <CardTitle className="truncate text-base">
+                      Company knowledge assistant
+                    </CardTitle>
+                    <CardDescription className="hidden sm:block">
                       Ask about SOPs, reports, and internal company documents.
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="ml-auto">
+                  <Badge variant="outline" className="ml-auto hidden sm:inline-flex">
                     RAG
                   </Badge>
-                  <Button variant="ghost" size="sm" onClick={startNewChat} disabled={isSending}>
-                    New chat
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-9 shrink-0 gap-1.5 px-2.5 sm:ml-0"
+                    onClick={startNewChat}
+                    disabled={isSending}
+                    aria-label="Start a new chat"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">New chat</span>
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6" aria-live="polite">
+                <div
+                  className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:space-y-5 sm:p-6"
+                  aria-live="polite"
+                >
                   {messages
                     .filter((message) => message.role === "user" || message.content)
                     .map((message) => (
@@ -795,15 +830,15 @@ function AssistantPage() {
                         className={`flex gap-3 ${message.role === "user" ? "justify-end" : ""}`}
                       >
                         {message.role === "assistant" && (
-                          <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <div className="mt-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:flex">
                             <Bot className="h-4 w-4" />
                           </div>
                         )}
                         <div
-                          className={`max-w-[85%] space-y-3 rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                          className={`min-w-0 space-y-3 rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed sm:px-4 sm:py-3 sm:text-sm ${
                             message.role === "user"
-                              ? "rounded-br-sm bg-primary text-primary-foreground"
-                              : "rounded-bl-sm border bg-muted/40"
+                              ? "max-w-[85%] rounded-br-sm bg-primary text-primary-foreground sm:max-w-[80%]"
+                              : "max-w-full rounded-bl-sm border bg-muted/40 sm:max-w-[85%]"
                           }`}
                         >
                           {message.role === "assistant" ? (
@@ -840,7 +875,7 @@ function AssistantPage() {
                           )}
                         </div>
                         {message.role === "user" && (
-                          <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold">
+                          <div className="mt-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-card text-xs font-semibold sm:flex">
                             {user.name
                               .split(/\s+/)
                               .slice(0, 2)
@@ -852,7 +887,7 @@ function AssistantPage() {
                     ))}
                   {isSending && !messages[messages.length - 1]?.content && (
                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <div className="hidden h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary sm:flex">
                         <Bot className="h-4 w-4" />
                       </div>
                       <span className="flex items-center gap-2">
@@ -861,8 +896,9 @@ function AssistantPage() {
                       </span>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
-                <div className="border-t bg-card p-3 sm:p-4">
+                <div className="border-t bg-card px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
                   {!isDocumentChatConfigured() && (
                     <p className="mb-3 flex items-center gap-2 text-xs text-amber-700">
                       <AlertCircle className="h-4 w-4 shrink-0" />
@@ -870,7 +906,9 @@ function AssistantPage() {
                     </p>
                   )}
                   <div className="flex items-end gap-2">
+                    {/* text-base on phones: inputs under 16px make iOS zoom the page on focus. */}
                     <Textarea
+                      ref={questionRef}
                       value={question}
                       onChange={(event) => setQuestion(event.target.value)}
                       onKeyDown={(event) => {
@@ -879,14 +917,15 @@ function AssistantPage() {
                           void sendQuestion();
                         }
                       }}
-                      placeholder="Ask a question about a company document…"
-                      rows={2}
-                      className="max-h-36 min-h-12 resize-y"
+                      placeholder="Ask about a company document…"
+                      rows={1}
+                      enterKeyHint="send"
+                      className="max-h-40 min-h-11 resize-none rounded-2xl py-2.5 text-base sm:text-sm"
                       aria-label="Your question"
                     />
                     <Button
                       size="icon"
-                      className="h-12 w-12 shrink-0"
+                      className="h-11 w-11 shrink-0 rounded-full"
                       onClick={() => void sendQuestion()}
                       disabled={!question.trim() || isSending}
                       aria-label="Send question"
@@ -898,7 +937,7 @@ function AssistantPage() {
                       )}
                     </Button>
                   </div>
-                  <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                  <p className="mt-2 hidden text-center text-[11px] text-muted-foreground sm:block">
                     Answers are generated from company documents. Verify critical information
                     against its source.
                   </p>
