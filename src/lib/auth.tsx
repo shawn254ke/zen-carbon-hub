@@ -31,7 +31,13 @@ export const ROLE_LABELS: Record<Role, string> = {
   dept_concrete: "Concrete Dept.",
 };
 
-export type User = { id: string; name: string; email: string; role: Role };
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  department?: string;
+};
 
 type AuthCtx = {
   user: User;
@@ -89,6 +95,8 @@ type LoginApiUser = {
   lastName?: string | null;
   email?: string | null;
   role?: string | null;
+  department?: string | { name?: string | null } | null;
+  departmentName?: string | null;
   status?: string | null;
 };
 
@@ -222,12 +230,20 @@ function buildUserFromApi(payload: LoginApiResponse, fallbackEmail = ""): User {
   const apiUser = payload.user ?? {};
   const fullName = [apiUser.firstName, apiUser.lastName].filter(Boolean).join(" ").trim();
   const email = (apiUser.email || fallbackEmail).trim();
+  const department =
+    (typeof apiUser.department === "string"
+      ? apiUser.department
+      : apiUser.department?.name
+    )?.trim() ||
+    apiUser.departmentName?.trim() ||
+    undefined;
 
   return {
     id: String(apiUser.id ?? `u_${Date.now()}`),
     name: fullName || apiUser.name || email.split("@")[0] || "Zen User",
     email,
     role: normalizeRole(apiUser.role ?? payload.user?.role ?? undefined),
+    department,
   };
 }
 

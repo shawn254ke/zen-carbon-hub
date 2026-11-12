@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   LogOut,
   BriefcaseBusiness,
+  Bot,
 } from "lucide-react";
 import { ROLE_LABELS, useAuth, type Role } from "@/lib/auth";
 import {
@@ -48,6 +49,7 @@ const NAV = [
   // { to: "/inventory", label: "Inventory", icon: Boxes },
   { to: "/lab-results", label: "Lab Results", icon: FlaskConical },
   { to: "/tenders", label: "Tenders", icon: BriefcaseBusiness },
+  { to: "/assistant", label: "AI Assistant", icon: Bot },
   { to: "/emissions", label: "Emissions Activities", icon: Gauge },
   { to: "/profile", label: "Profile & Settings", icon: UserCircle2 },
 ] as const;
