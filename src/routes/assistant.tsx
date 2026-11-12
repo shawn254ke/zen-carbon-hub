@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { ROLE_LABELS, useAuth } from "@/lib/auth";
+import { getUserRoleName, useAuth } from "@/lib/auth";
 import {
   approvePlanner,
   approveWeeklyReport,
@@ -654,8 +654,10 @@ function AssistantPage() {
         progress,
         employee: {
           name: planner.employee.name || user.name,
-          department: planner.employee.department || getUserDepartment(user),
-          role: ROLE_LABELS[user.role] ?? user.role,
+          // Department and role both carry the backend role name (e.g. DEPT_MRV) so n8n
+          // gets one consistent identifier for routing the report.
+          department: getUserRoleName(user),
+          role: getUserRoleName(user),
         },
         submittedBy: user.name,
         notes: asks,

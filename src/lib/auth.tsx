@@ -36,8 +36,18 @@ export type User = {
   name: string;
   email: string;
   role: Role;
+  /** Role exactly as the backend returned it at login (e.g. "DEPT_MRV"), before normalizing. */
+  roleName?: string;
   department?: string;
 };
+
+/**
+ * The signed-in account's backend role name. Sessions stored before `roleName` existed fall
+ * back to the normalized role, which matches the backend names for every known role.
+ */
+export function getUserRoleName(user: User) {
+  return user.roleName?.trim() || user.role.toUpperCase();
+}
 
 type AuthCtx = {
   user: User;
@@ -243,6 +253,7 @@ function buildUserFromApi(payload: LoginApiResponse, fallbackEmail = ""): User {
     name: fullName || apiUser.name || email.split("@")[0] || "Zen User",
     email,
     role: normalizeRole(apiUser.role ?? payload.user?.role ?? undefined),
+    roleName: apiUser.role?.trim() || undefined,
     department,
   };
 }
